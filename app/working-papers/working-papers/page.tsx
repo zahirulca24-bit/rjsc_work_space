@@ -1,0 +1,2 @@
+import {PageTitle,Card,Badge} from "@/components/UI";
+export default function Page(){return <><PageTitle title="Working Papers" desc="Task-wise standard working papers stored under each client"/><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{["Annual Return Working Paper","Form XII Review","Schedule X Preparation"].map((x,i)=><Card key={x}><div className="font-bold">{x}</div><div className="mt-2 text-sm text-slate-500">DEMO-001 • SILVEE AND SINTHEE</div><div className="mt-4"><Badge>{i===0?"In Progress":"Not Started"}</Badge></div></Card>)}</div></>}
