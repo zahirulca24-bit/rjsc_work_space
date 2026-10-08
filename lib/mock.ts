@@ -13,13 +13,9 @@ export const services = [
   { name: "Society Return Filing", fee: 800, category: "Post-Registration", action: "Prepare society return document and submit" }
 ];
 
-export const clients = [
-  { id: "RJSC-0001", name: "SILVEE AND SINTHEE TRAVEL AGENCY LTD.", regNo: "C-118168", type: "Private Company", assigned: "Noyon", status: "Active", folder: "Google Drive" },
-  { id: "RJSC-0002", name: "Bangladesh Film Club Limited", regNo: "—", type: "Private Limited", assigned: "Noyon", status: "Active", folder: "Google Drive" }
-];
-
+export { clientStore } from './clients/client-store';
 export const works = [
-  { id: "DEMO-001", client: clients[0].name, service: "Annual Return / Returns Filing", assigned: "Noyon", status: "In Progress" as WorkStatus, due: "15-Oct-2026", bill: 5500, collection: 3000, dueAmount: 2500 }
+  { id: "DEMO-001", client: "SILVEE AND SINTHEE TRAVEL AGENCY LTD.", service: "Annual Return / Returns Filing", assigned: "Noyon", status: "In Progress" as WorkStatus, due: "15-Oct-2026", bill: 5500, collection: 3000, dueAmount: 2500 }
 ];
 
 export const requiredDocs: Record<string, string[]> = {

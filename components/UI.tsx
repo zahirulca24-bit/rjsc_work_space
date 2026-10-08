@@ -26,12 +26,45 @@ export function Badge({children,tone="neutral"}:{children:React.ReactNode;tone?:
   return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset ${cls}`}>{children}</span>
 }
 
-export function PrimaryButton({children}:{children:React.ReactNode}){
-  return <button className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#103d37] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0b312c] focus:outline-none focus:ring-4 focus:ring-emerald-100">{children}<ArrowUpRight size={15}/></button>
+export function PrimaryButton({children, onClick, disabled}:{children:React.ReactNode; onClick?: () => void; disabled?: boolean}){
+  return <button onClick={onClick} disabled={disabled} className={`inline-flex items-center justify-center gap-2 rounded-xl bg-[#103d37] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0b312c] focus:outline-none focus:ring-4 focus:ring-emerald-100 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>{children}<ArrowUpRight size={15}/></button>
 }
 
 export const fieldClass="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50";
 
 export function SectionTitle({title,desc}:{title:string;desc?:string}){
   return <div><h2 className="text-base font-bold text-[#102725]">{title}</h2>{desc&&<p className="mt-1 text-xs leading-5 text-slate-500">{desc}</p>}</div>
+}
+
+export function SecondaryButton({children, onClick, disabled}: {children:React.ReactNode; onClick?: () => void; disabled?: boolean}){
+  return (
+    <button 
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-slate-100 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function Modal({isOpen, onClose, title, size = 'lg', children}: {isOpen: boolean, onClose: () => void, title: string, size?: 'md'|'lg'|'xl', children: React.ReactNode}) {
+  if (!isOpen) return null;
+  const sizeClass = size === 'xl' ? 'max-w-5xl' : size === 'lg' ? 'max-w-3xl' : 'max-w-md';
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
+      <div className={`relative w-full ${sizeClass} rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]`}>
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+          <button onClick={onClose} className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import {
   Building2,
   Search,
@@ -12,34 +12,13 @@ import {
   Users,
   ChevronRight,
 } from "lucide-react";
-
-const clients = [
-  {
-    id: "RJSC-0001",
-    name: "SILVEE AND SINTHEE TRAVEL AGENCY LTD.",
-    regNo: "C-118168",
-    type: "Private Company",
-    assigned: "Noyon",
-    status: "Active",
-    openWorks: 1,
-    totalBill: 5500,
-    due: 2500,
-  },
-  {
-    id: "RJSC-0002",
-    name: "Bangladesh Film Club Limited",
-    regNo: "—",
-    type: "Private Limited",
-    assigned: "Noyon",
-    status: "Active",
-    openWorks: 0,
-    totalBill: 0,
-    due: 0,
-  },
-];
+import { clientStore } from "@/lib/mock";
+import { AddClientModal } from "./add-client-modal";
 
 export default function ClientsPage() {
+  const clients = useSyncExternalStore(clientStore.subscribe, clientStore.getSnapshot, clientStore.getSnapshot);
   const [search, setSearch] = useState("");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -50,7 +29,7 @@ export default function ClientsPage() {
         c.id.toLowerCase().includes(q) ||
         c.regNo.toLowerCase().includes(q)
     );
-  }, [search]);
+  }, [search, clients]);
 
   return (
     <div className="space-y-6">
@@ -70,39 +49,43 @@ export default function ClientsPage() {
           </p>
         </div>
 
-        <button className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800">
+        <button 
+          onClick={() => setIsAddModalOpen(true)}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800">
           <Plus size={17} />
           Add Client
         </button>
       </div>
 
+      <AddClientModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric
           icon={<Users size={18} />}
           label="Total Clients"
-          value="2"
+          value={clients.length.toString()}
           hint="Client master"
         />
 
         <Metric
           icon={<Building2 size={18} />}
           label="Active Clients"
-          value="2"
-          hint="100% active"
+          value={clients.filter(c => c.status === 'Active').length.toString()}
+          hint={`${clients.length > 0 ? Math.round(clients.filter(c => c.status === 'Active').length / clients.length * 100) : 0}% active`}
           accent
         />
 
         <Metric
           icon={<BriefcaseBusiness size={18} />}
           label="Open Works"
-          value="1"
+          value={clients.reduce((acc, c) => acc + c.openWorks, 0).toString()}
           hint="Across all clients"
         />
 
         <Metric
           icon={<CircleDollarSign size={18} />}
           label="Outstanding Due"
-          value="৳ 2,500"
+          value={`৳ ${clients.reduce((acc, c) => acc + c.due, 0).toLocaleString()}`}
           hint="Requires follow-up"
           warning
         />

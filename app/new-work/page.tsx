@@ -1,14 +1,15 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore, useEffect } from "react";
 import { PageTitle, Card, fieldClass, PrimaryButton, SectionTitle, Badge } from "@/components/UI";
-import { clients } from "@/lib/mock";
+import { clientStore } from "@/lib/mock";
 import { services } from "@/lib/rjsc/services";
 import { calculateRJSCFee, getRequiredDocuments, getLegalReferences } from "@/lib/rjsc/rule-engine";
 import { EntityType } from "@/lib/rjsc/types";
 import { BriefcaseBusiness, ClipboardCheck, FileText, ReceiptText, Sparkles, AlertTriangle } from "lucide-react";
 
 export default function Page(){
- const [client, setClient] = useState(clients[0].name);
+ const clients = useSyncExternalStore(clientStore.subscribe, clientStore.getSnapshot, clientStore.getSnapshot);
+ const [client, setClient] = useState(clients[0]?.name || "");
  const [entityType, setEntityType] = useState<EntityType>(EntityType.PRIVATE_COMPANY);
  const [serviceId, setServiceId] = useState(services[4].id);
  const [fee, setFee] = useState(5000); 
