@@ -6,3 +6,4 @@ node_modules/
 app-backup-*/
 components-backup-*/
 "New folder/"
+tsconfig.tsbuildinfo
