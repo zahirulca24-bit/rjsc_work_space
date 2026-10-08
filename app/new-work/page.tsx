@@ -1,20 +1,34 @@
 "use client";
-import { useMemo, useState, useSyncExternalStore, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { PageTitle, Card, fieldClass, PrimaryButton, SectionTitle, Badge } from "@/components/UI";
-import { clientStore } from "@/lib/mock";
 import { services } from "@/lib/rjsc/services";
 import { calculateRJSCFee, getRequiredDocuments, getLegalReferences } from "@/lib/rjsc/rule-engine";
 import { EntityType } from "@/lib/rjsc/types";
 import { BriefcaseBusiness, ClipboardCheck, FileText, ReceiptText, Sparkles, AlertTriangle } from "lucide-react";
+import { getClients } from "@/lib/api/clients";
+import { createWork } from "@/lib/api/works";
+import { useRouter } from "next/navigation";
 
 export default function Page(){
- const clients = useSyncExternalStore(clientStore.subscribe, clientStore.getSnapshot, clientStore.getSnapshot);
- const [client, setClient] = useState(clients[0]?.name || "");
+ const [clients, setClients] = useState<any[]>([]);
+ const [clientId, setClientId] = useState("");
  const [entityType, setEntityType] = useState<EntityType>(EntityType.PRIVATE_COMPANY);
  const [serviceId, setServiceId] = useState(services[4].id);
- const [fee, setFee] = useState(5000); 
+ const [fee, setFee] = useState(5000);
  const [other, setOther] = useState(300);
  const [securedAmount, setSecuredAmount] = useState(0);
+ const router = useRouter();
+ const [isCreating, setIsCreating] = useState(false);
+
+ useEffect(() => {
+   getClients().then(data => {
+     setClients(data);
+     if (data.length > 0) {
+       setClientId(data[0].id);
+       setEntityType(data[0].entity_type);
+     }
+   });
+ }, []);
 
  const selectedService = services.find(x => x.id === serviceId);
  const availableEntities = selectedService?.entityTypes || [];
@@ -27,108 +41,126 @@ export default function Page(){
  }), [serviceId, currentEntity, securedAmount]);
 
  const docs = getRequiredDocuments(serviceId, currentEntity);
- const rjscFee = feeResult ? feeResult.totalFee : 0;
- const refs = getLegalReferences(serviceId, currentEntity);
- const needsReview = selectedService?.sourceStatus === 'NEEDS_SOURCE_REVIEW' || docs.length === 0;
+ const rjscFee = feeResult ? feeResult.totalFee : null;
 
- return <>
-  <PageTitle title="Create New Work" desc="Create an RJSC job and prepare its workflow automatically."/>
-  <div className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
-   <Card className="p-0 overflow-hidden">
-    <div className="border-b border-slate-100 bg-[#fbfcfc] px-5 py-4">
-      <SectionTitle title="Work Information" desc="Choose the client and service. The automation preview updates instantly."/>
-    </div>
-    <div className="p-5">
-    <div className="grid gap-4 md:grid-cols-2">
-      <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Client<select value={client} onChange={e=>setClient(e.target.value)} className={fieldClass}>{clients.map(c=><option key={c.id}>{c.name}</option>)}</select></label>
-      <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Entity Type<select value={currentEntity} onChange={e=>setEntityType(e.target.value as EntityType)} className={fieldClass}>{availableEntities.map(e=><option key={e} value={e}>{e.replace('_', ' ')}</option>)}</select></label>
-      <label className="text-xs font-bold uppercase tracking-wide text-slate-600">RJSC Service<select value={serviceId} onChange={e=>setServiceId(e.target.value)} className={fieldClass}>{services.map(x=><option key={x.id} value={x.id}>{x.serviceName}</option>)}</select></label>
-      {serviceId === 'mortgage-charge-registration' && (
-        <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Secured Amount<input type="number" value={securedAmount} onChange={e=>setSecuredAmount(Number(e.target.value))} className={fieldClass}/></label>
-      )}
-      <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Period / Year<input defaultValue="FY 2025-26" className={fieldClass}/></label>
-      <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Assigned To<select className={fieldClass}><option>Noyon</option><option>Hemadry Roy</option><option>Md. Bayezid</option></select></label>
-      <div className="hidden md:block"></div>
-      <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Professional Fee<input type="number" value={fee} onChange={e=>setFee(Number(e.target.value))} className={fieldClass}/></label>
-      <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Other Cost<input type="number" value={other} onChange={e=>setOther(Number(e.target.value))} className={fieldClass}/></label>
-    </div>
-    <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-5"><div className="text-xs text-slate-400">Draft mode • No backend write yet</div><PrimaryButton>Create Work</PrimaryButton></div>
-   </div></Card>
+ const handleSubmit = async (e: React.FormEvent) => {
+   e.preventDefault();
+   setIsCreating(true);
+   try {
+     const payload = {
+       client_id: clientId,
+       service_id: serviceId,
+       entity_type: currentEntity,
+       status: "Pending Check",
+       professional_fee: fee,
+       government_fee: rjscFee,
+       other_cost: other,
+       rule_snapshot: {
+         service_id: serviceId,
+         entity_type: currentEntity,
+         fee_rule_id: feeResult?.ruleId,
+         fee_source_reference: feeResult?.sourceReference,
+         fee_breakdown_snapshot: feeResult?.breakdown
+       }
+     };
+     await createWork(payload);
+     router.push("/work-register");
+   } catch (err) {
+     alert("Error creating work.");
+   } finally {
+     setIsCreating(false);
+   }
+ };
 
-   <div className="space-y-5">
-    <Card>
-      <div className="flex items-center justify-between">
-        <SectionTitle title="Automation Preview" desc="Generated from selected service"/>
-        <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><Sparkles size={18}/></div>
-      </div>
-      <div className="mt-5 grid grid-cols-2 gap-3">
-      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-        <ReceiptText size={16} className={feeResult ? "text-emerald-700" : "text-amber-500"}/>
-        <div className="mt-3 text-[10px] font-bold uppercase tracking-wide text-slate-400">Govt / RJSC Fee</div>
-        {feeResult ? (
-          <div className="mt-1 text-lg font-bold">৳ {rjscFee.toLocaleString()}</div>
-        ) : (
-          <div className="mt-1 text-xs font-bold text-amber-600">Needs Source Review</div>
-        )}
-      </div>
-      <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-        <BriefcaseBusiness size={16} className="text-emerald-700"/>
-        <div className="mt-3 text-[10px] font-bold uppercase tracking-wide text-slate-400">Total Bill</div>
-        {feeResult ? (
-          <div className="mt-1 text-lg font-bold">৳ {(fee + other + rjscFee).toLocaleString()}</div>
-        ) : (
-          <div className="mt-1 text-xs font-bold text-amber-600">Incomplete — Government Fee Pending</div>
-        )}
-      </div>
-      <div className="col-span-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
-        <div className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Next Action</div>
-        <div className="mt-1.5 text-sm font-medium leading-6 text-slate-700">
-          {selectedService?.nextAction || "Needs Source Review"}
+ return (
+   <form className="max-w-4xl mx-auto space-y-6" onSubmit={handleSubmit}>
+     <PageTitle title="Start New Work" desc="Calculate fees, checklist, and rules automatically." />
+
+     <Card className="p-6">
+      <SectionTitle title="Client & Service" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Select Client</label>
+          <select value={clientId} onChange={e => {
+            const cl = clients.find(c => c.id === e.target.value);
+            setClientId(e.target.value);
+            if (cl) setEntityType(cl.entity_type);
+          }} className={fieldClass}>
+             {clients.map(c => <option key={c.id} value={c.id}>{c.legal_name}</option>)}
+          </select>
         </div>
-      </div>
-    </div></Card>
-
-    <Card>
-      <div className="flex items-center justify-between">
-        <SectionTitle title="Checklist / Requisition" desc={`${docs.length} requirements detected`}/>
-        {needsReview ? <Badge tone="warning">Needs Source Review</Badge> : <Badge tone="info">Auto generated</Badge>}
-      </div>
-      <div className="mt-4">
-        {docs.length > 0 ? (
-          <div className="space-y-2">
-            {docs.map((d,i)=> (
-              <label key={d.id} className="group flex items-start gap-3 rounded-xl border border-slate-100 bg-[#fbfcfc] p-3 text-sm transition hover:border-emerald-200 hover:bg-emerald-50/30">
-                <input type="checkbox" className="mt-1 h-4 w-4 accent-emerald-700"/>
-                <div className="flex-1">
-                  <div className="font-medium text-slate-700">{d.documentName}</div>
-                  <div className="mt-0.5 text-[11px] text-slate-400">Requirement {i+1} • {d.sourceReference}</div>
-                </div>
-                {i===0?<ClipboardCheck size={16} className="mt-1 text-slate-300"/>:<FileText size={16} className="mt-1 text-slate-300"/>}
-              </label>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-xl bg-amber-50 p-4 border border-amber-200 text-amber-800 flex items-center gap-3">
-            <AlertTriangle size={18} />
-            <div className="text-sm font-semibold">No verified document rule loaded yet.</div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Entity Type Override</label>
+          <select value={currentEntity} onChange={e=>setEntityType(e.target.value as EntityType)} className={fieldClass}>
+             {availableEntities.map(x => <option key={x} value={x}>{x.replace('_',' ')}</option>)}
+          </select>
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-slate-700 mb-1">Service Type</label>
+          <select value={serviceId} onChange={e=>setServiceId(e.target.value)} className={fieldClass}>
+             {services.map(s => <option key={s.id} value={s.id}>{s.id}</option>)}
+          </select>
+        </div>
+        {selectedService?.category === 'MORTGAGE' && (
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Secured Amount (for Mortgage fee)</label>
+            <input type="number" value={securedAmount} onChange={e=>setSecuredAmount(Number(e.target.value))} className={fieldClass}/>
           </div>
         )}
       </div>
-      
-      {refs.length > 0 && (
-        <div className="mt-5 border-t pt-4">
-          <div className="text-xs font-bold text-slate-400 uppercase mb-2">Legal References</div>
-          <ul className="text-xs text-slate-600 space-y-1">
-            {refs.map(r => (
-              <li key={r.id}>
-                <strong>{r.lawName}</strong> - {r.section} ({r.effectiveDate || 'Active'})
-              </li>
-            ))}
-          </ul>
+     </Card>
+
+     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+       <Card className="p-6">
+        <SectionTitle title="Documentation Check" />
+        <div className="mt-4 space-y-2">
+          {docs.length === 0 ? <p className="text-slate-500 text-sm italic">No specific documents required.</p> :
+            docs.map((d, i) => (
+             <div key={i} className="flex gap-2 text-sm bg-slate-50 p-2 rounded">
+               <FileText className="w-4 h-4 text-slate-400 shrink-0 mt-0.5"/>
+               <span>{typeof d === "string" ? d : d.documentName || JSON.stringify(d)}</span>
+             </div>
+            ))
+          }
         </div>
-      )}
-    </Card>
-   </div>
-  </div>
- </>
+       </Card>
+       <Card className="p-6">
+         <SectionTitle title="Cost Structure" />
+         <div className="mt-4 space-y-4">
+           <div className="flex justify-between items-center bg-slate-50 p-3 rounded">
+             <div className="text-sm">
+               <div className="font-semibold text-slate-800">Govt. Fee (Rule {feeResult?.ruleId || 'N/A'})</div>
+               <div className="text-slate-500 text-xs">Based on actual RJSC logic</div>
+             </div>
+             <div className="font-bold text-slate-800 font-mono text-lg">
+               {rjscFee !== null ? `৳ ${rjscFee.toLocaleString()}` : <span className="text-amber-600 text-sm">Unknown / Manual</span>}
+             </div>
+           </div>
+
+           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Professional Fee</label>
+            <input type="number" value={fee} onChange={e=>setFee(Number(e.target.value))} className={fieldClass}/>
+           </div>
+           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Other/Misc Cost</label>
+            <input type="number" value={other} onChange={e=>setOther(Number(e.target.value))} className={fieldClass}/>
+           </div>
+
+           <div className="pt-3 border-t border-slate-200 flex justify-between items-center">
+             <div className="font-bold text-slate-900">Total Billed</div>
+             <div className="font-bold text-emerald-600 text-xl font-mono">
+               {rjscFee !== null ? `৳ ${(rjscFee + fee + other).toLocaleString()}` : <span className="text-amber-600 text-sm">Unknown Govt Fee</span>}
+             </div>
+           </div>
+         </div>
+       </Card>
+     </div>
+
+     <div className="flex justify-end pt-4">
+       <PrimaryButton  disabled={isCreating}>
+         {isCreating ? "Creating..." : "Save Work & Snapshot Rules"}
+       </PrimaryButton>
+     </div>
+   </form>
+ )
 }

@@ -7,3 +7,13 @@ app-backup-*/
 components-backup-*/
 "New folder/"
 tsconfig.tsbuildinfo
+
+# Python
+.venv/
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.db
+backend/*.db
+backend/.env

@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Search,
   Plus,
@@ -15,334 +15,141 @@ import {
   CheckCircle2,
   CircleDollarSign,
 } from "lucide-react";
-
-const works = [
-  {
-    id: "DEMO-001",
-    client: "SILVEE AND SINTHEE TRAVEL AGENCY LTD.",
-    service: "Annual Return / Returns Filing",
-    assigned: "Noyon",
-    priority: "High",
-    status: "In Progress",
-    dueDate: "15-Oct-2026",
-    checklist: "3/8",
-    documents: 3,
-    wp: "Under Review",
-    bill: 5500,
-    collection: 3000,
-    due: 2500,
-  },
-];
+import { getWorks } from "@/lib/api/works";
+import { getClients } from "@/lib/api/clients";
 
 export default function WorkRegisterPage() {
+  const [works, setWorks] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("All");
-  const [priority, setPriority] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([getWorks(), getClients()]).then(([w, c]) => {
+       setWorks(w);
+       setClients(c);
+       setLoading(false);
+    });
+  }, []);
+
+  const clientMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const c of clients) map[c.id] = c.legal_name;
+    return map;
+  }, [clients]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-
     return works.filter((w) => {
-      const searchMatch =
-        !q ||
-        w.id.toLowerCase().includes(q) ||
-        w.client.toLowerCase().includes(q) ||
-        w.service.toLowerCase().includes(q);
-
-      const statusMatch = status === "All" || w.status === status;
-      const priorityMatch = priority === "All" || w.priority === priority;
-
-      return searchMatch && statusMatch && priorityMatch;
+      const cname = clientMap[w.client_id]?.toLowerCase() || "";
+      const matchesSearch = !q || w.work_code?.toLowerCase().includes(q) || w.service_id.toLowerCase().includes(q) || cname.includes(q);
+      const matchesStatus = statusFilter === "All" || w.status === statusFilter;
+      return matchesSearch && matchesStatus;
     });
-  }, [search, status, priority]);
+  }, [search, statusFilter, works, clientMap]);
 
   return (
-    <div className="work-page space-y-5">
-
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-[#47765a]">
-            Operations
-          </div>
-
-          <h1 className="text-3xl font-black tracking-tight text-[#1c2622]">
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <FolderOpen className="w-6 h-6 text-emerald-600" />
             Work Register
           </h1>
-
-          <p className="mt-2 text-sm text-[#6e7973]">
-            Track every RJSC engagement, deadline, document and financial status.
-          </p>
+          <p className="text-slate-500 mt-1">Track all active and completed service requests.</p>
         </div>
-
         <Link
           href="/new-work"
-          className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#47765a] px-5 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#38634a] hover:shadow-lg"
+          className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm"
         >
-          <Plus size={17} />
-          New Work
+          <Plus className="w-4 h-4" />
+          Start New Work
         </Link>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric
-          tone="coral"
-          icon={<BriefcaseBusiness size={18} />}
-          label="Open Work"
-          value="1"
-          sub="Current workload"
-        />
-
-        <Metric
-          tone="aqua"
-          icon={<Clock3 size={18} />}
-          label="In Progress"
-          value="1"
-          sub="Being processed"
-        />
-
-        <Metric
-          tone="sage"
-          icon={<CheckCircle2 size={18} />}
-          label="Completed"
-          value="0"
-          sub="Current period"
-        />
-
-        <Metric
-          tone="yellow"
-          icon={<CircleDollarSign size={18} />}
-          label="Outstanding"
-          value="৳ 2,500"
-          sub="Client due"
-        />
-      </div>
-
-      <section className="work-panel overflow-hidden rounded-[22px] border border-[#d7e2de]">
-
-        <div className="work-toolbar flex flex-col gap-3 border-b border-[#ddd9cb] p-4 xl:flex-row xl:items-center">
-
-          <div className="relative flex-1">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8b918c]"
-            />
-
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row gap-4 justify-between items-center bg-slate-50">
+          <div className="relative flex-1 max-w-md w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
+              type="text"
+              placeholder="Search by ID, client, or service..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search Work ID, client or service..."
-              className="h-10 w-full rounded-xl border border-[#dad7cb] bg-white/80 pl-10 pr-3 text-sm outline-none transition focus:border-[#79b993] focus:ring-4 focus:ring-[#e7f5ec]"
+              className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             />
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <div className="inline-flex items-center gap-2 rounded-xl border border-[#dad7cb] bg-white/70 px-3">
-              <SlidersHorizontal size={15} className="text-[#708078]" />
-
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="h-10 bg-transparent text-sm font-semibold text-[#555d58] outline-none"
-              >
-                <option>All</option>
-                <option>In Progress</option>
-                <option>Completed</option>
-                <option>Waiting Client</option>
-              </select>
-            </div>
-
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className="h-10 rounded-xl border border-[#dad7cb] bg-white/70 px-3 text-sm font-semibold text-[#555d58] outline-none"
-            >
-              <option>All</option>
-              <option>Urgent</option>
-              <option>High</option>
-              <option>Normal</option>
-              <option>Low</option>
-            </select>
+          <div className="flex gap-2">
+             <select
+               value={statusFilter}
+               onChange={e => setStatusFilter(e.target.value)}
+               className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white"
+             >
+               <option value="All">All Statuses</option>
+               <option value="Pending Check">Pending Check</option>
+               <option value="In Progress">In Progress</option>
+               <option value="Completed">Completed</option>
+             </select>
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-[1350px] w-full">
-            <thead>
-              <tr className="work-table-head">
-                <Th>Work</Th>
-                <Th>Client</Th>
-                <Th>Service</Th>
-                <Th>Assigned</Th>
-                <Th>Priority</Th>
-                <Th>Status</Th>
-                <Th>Due Date</Th>
-                <Th>Checklist</Th>
-                <Th>Docs</Th>
-                <Th>Working Paper</Th>
-                <Th>Bill</Th>
-                <Th>Due</Th>
-                <Th></Th>
+          <table className="w-full text-left text-sm">
+            <thead className="bg-white text-slate-600 font-medium border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-4">Work ID & Client</th>
+                <th className="px-6 py-4">Service</th>
+                <th className="px-6 py-4">Assigned</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Govt Fee</th>
+                <th className="px-6 py-4">Total Bill</th>
               </tr>
             </thead>
-
-            <tbody>
-              {filtered.map((work) => (
-                <tr key={work.id} className="work-row">
-
-                  <td className="px-4 py-4">
-                    <div className="font-black text-[#243a31]">
-                      {work.id}
-                    </div>
-                  </td>
-
-                  <td className="max-w-[260px] px-4 py-4">
-                    <div className="font-bold text-[#303630]">
-                      {work.client}
-                    </div>
-                  </td>
-
-                  <Td>{work.service}</Td>
-
-                  <td className="px-4 py-4">
-                    <div className="inline-flex items-center gap-2">
-                      <div className="grid h-7 w-7 place-items-center rounded-full bg-[#315f55] text-[10px] font-black text-white">
-                        N
-                      </div>
-
-                      <span className="text-sm text-[#555d58]">
-                        {work.assigned}
-                      </span>
-                    </div>
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <span className="rounded-full bg-[#fce9e4] px-2.5 py-1 text-[11px] font-black text-[#ba624f]">
-                      {work.priority}
-                    </span>
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <span className="rounded-full bg-[#dff4f7] px-2.5 py-1 text-[11px] font-black text-[#397684]">
-                      {work.status}
-                    </span>
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <div className="inline-flex items-center gap-2 text-sm font-semibold text-[#555d58]">
-                      <CalendarDays size={14} />
-                      {work.dueDate}
-                    </div>
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <span className="rounded-lg bg-[#e7f5ec] px-2.5 py-1 text-xs font-black text-[#47765a]">
-                      {work.checklist}
-                    </span>
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <div className="inline-flex items-center gap-1.5 text-sm font-bold text-[#397684]">
-                      <FolderOpen size={14} />
-                      {work.documents}
-                    </div>
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <span className="rounded-lg bg-[#fff0ad] px-2.5 py-1 text-[11px] font-black text-[#7b6508]">
-                      {work.wp}
-                    </span>
-                  </td>
-
-                  <td className="px-4 py-4 text-sm font-black text-[#313831]">
-                    ৳ {work.bill.toLocaleString()}
-                  </td>
-
-                  <td className="px-4 py-4 text-sm font-black text-[#d36551]">
-                    ৳ {work.due.toLocaleString()}
-                  </td>
-
-                  <td className="px-4 py-4 text-right">
-                    <button className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#d8d9ce] bg-white/80 px-3 text-xs font-black text-[#4a5b52] transition hover:-translate-y-0.5 hover:bg-[#dff1e7]">
-                      Open
-                      <ChevronRight size={14} />
-                    </button>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">Loading works...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
+                    No works found.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filtered.map((w) => (
+                  <tr key={w.id} className="hover:bg-slate-50 group">
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-slate-900">{w.work_code}</div>
+                      <Link href={`/clients/${w.client_id}`} className="text-emerald-600 text-xs hover:underline mt-0.5 inline-block">
+                        {clientMap[w.client_id] || "Unknown Client"}
+                      </Link>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-medium text-slate-800">{w.service_id}</div>
+                      <div className="text-slate-500 text-xs mt-0.5">{w.entity_type.replace('_', ' ')}</div>
+                    </td>
+                    <td className="px-6 py-4 text-slate-600">
+                      {w.assigned_to || "-"}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700">
+                        {w.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-600 font-mono">
+                      {w.government_fee !== null ? `৳ ${parseFloat(w.government_fee).toLocaleString()}` : 'Unknown'}
+                    </td>
+                    <td className="px-6 py-4 text-emerald-700 font-mono font-medium">
+                      {w.total_bill !== null ? `৳ ${parseFloat(w.total_bill).toLocaleString()}` : 'Pending'}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
-
-        <div className="flex items-center justify-between border-t border-[#ddd9cb] bg-[#e7f2ee] px-4 py-3">
-          <div className="text-xs text-[#6f7d76]">
-            {filtered.length} work item(s)
-          </div>
-
-          <div className="inline-flex items-center gap-2 text-xs font-bold text-[#47765a]">
-            <FileText size={14} />
-            RJSC Work Register
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function Metric({
-  icon,
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub: string;
-  tone: "sage" | "aqua" | "yellow" | "coral";
-}) {
-  const styles = {
-    sage: "border-[#b8dfc6] bg-[#e7f5ec]",
-    aqua: "border-[#bee4e9] bg-[#e8f7f9]",
-    yellow: "border-[#f0da88] bg-[#fff6ce]",
-    coral: "border-[#efc5bc] bg-[#fcebe7]",
-  };
-
-  return (
-    <div className={`dash-3d rounded-[18px] border p-4 ${styles[tone]}`}>
-      <div className="flex items-start justify-between">
-        <div className="grid h-9 w-9 place-items-center rounded-xl bg-white/70 text-[#3f6755]">
-          {icon}
-        </div>
-      </div>
-
-      <div className="mt-3 text-[10px] font-black uppercase tracking-[0.1em] text-[#6d7771]">
-        {label}
-      </div>
-
-      <div className="mt-1 text-[22px] font-black text-[#222622]">
-        {value}
-      </div>
-
-      <div className="mt-1 text-xs text-[#747c76]">
-        {sub}
       </div>
     </div>
-  );
-}
-
-function Th({ children }: { children?: React.ReactNode }) {
-  return (
-    <th className="whitespace-nowrap px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.11em] text-[#38584d]">
-      {children}
-    </th>
-  );
-}
-
-function Td({ children }: { children: React.ReactNode }) {
-  return (
-    <td className="px-4 py-4 text-sm text-[#5c655f]">
-      {children}
-    </td>
   );
 }

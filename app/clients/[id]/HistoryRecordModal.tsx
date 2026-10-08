@@ -37,7 +37,7 @@ export function HistoryRecordModal({ isOpen, onClose, onSave, clientId, editEven
     if (type === 'RJSC_FILING' && (!formData.serviceType || !formData.formName)) return alert("Service Type and Form Name are required.");
     if (type === 'MORTGAGE' && (!formData.lender || Number(formData.securedAmount) < 0 || !formData.creationDate)) return alert("Lender, valid Secured Amount, and Creation Date are required.");
     if (type === 'COMPLIANCE_ISSUE' && (!formData.title || !formData.identifiedDate)) return alert("Title and Identified Date are required.");
-    
+
     const checkDates = (start?: string, end?: string) => {
       if (start && end && new Date(end).getTime() < new Date(start).getTime()) {
         alert("End/Cessation date cannot be before start/appointment date.");
@@ -57,7 +57,7 @@ export function HistoryRecordModal({ isOpen, onClose, onSave, clientId, editEven
       clientId,
       type
     } as CorporateEvent;
-    
+
     onSave(ev);
     onClose();
   };
@@ -166,7 +166,7 @@ export function HistoryRecordModal({ isOpen, onClose, onSave, clientId, editEven
             </>
           )}
         </div>
-        
+
         <div className="grid grid-cols-2 gap-4">
           <div><label className="text-xs font-bold uppercase tracking-wide text-slate-600 block mb-1">Source Document</label><input className={fieldClass} value={formData.sourceDocument||''} onChange={e=>handleChange('sourceDocument', e.target.value)}/></div>
           <div><label className="text-xs font-bold uppercase tracking-wide text-slate-600 block mb-1">Notes</label><input className={fieldClass} value={formData.notes||''} onChange={e=>handleChange('notes', e.target.value)}/></div>

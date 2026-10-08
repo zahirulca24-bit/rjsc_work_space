@@ -2,397 +2,312 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState, useSyncExternalStore } from "react";
-import { clientStore } from "@/lib/clients/client-store";
-import { historyStore } from "@/lib/clients/history-store";
+import { useState, useEffect } from "react";
 import { CorporateEvent } from "@/lib/clients/history-types";
-import { 
-  getCurrentDirectors, getCurrentShareholders, getCurrentCapital, getCurrentRegisteredOffice, buildTimeline,
-  getCurrentLegalName, getLastAGM, getLastAnnualReturn, getLatestFiling, getPendingFilingCount, getNextKnownComplianceAction, getComplianceStatus 
-} from "@/lib/clients/history-utils";
+import { buildTimeline } from "@/lib/clients/history-utils";
 import { Badge, Stat, PrimaryButton } from "@/components/UI";
-import { works } from "@/lib/mock";
+import { getClient, getClientCurrentPosition, getClientHistory } from "@/lib/api/clients";
+import { getWorks } from "@/lib/api/works";
 import { HistoryRecordModal } from "./HistoryRecordModal";
+import { EntityType } from "@/lib/rjsc/types";
 
 export default function ClientProfilePage() {
   const params = useParams();
   const id = String(params.id);
 
-  const clients = useSyncExternalStore(clientStore.subscribe, clientStore.getSnapshot, clientStore.getSnapshot);
-  const client = clients.find(c => c.id === id);
-
-  const events = useSyncExternalStore(historyStore.subscribe, historyStore.getAllSnapshot, historyStore.getAllSnapshot).filter(e => e.clientId === id);
+  const [client, setClient] = useState<any>(null);
+  const [currentPosition, setCurrentPosition] = useState<any>(null);
+  const [events, setEvents] = useState<CorporateEvent[]>([]);
+  const [clientWorks, setClientWorks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string|null>(null);
 
   const [tab, setTab] = useState("Overview");
-  
-  // Modal State
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editEvent, setEditEvent] = useState<CorporateEvent | null>(null);
-  
-  const [timelineFilter, setTimelineFilter] = useState("All");
 
-  if (!client) {
-    return <div className="p-8 text-center text-slate-500">Client not found. <Link href="/clients" className="text-emerald-600 underline">Go back</Link></div>;
-  }
+  const fetchAllData = async () => {
+    try {
+      setLoading(true);
+      const [c, cp, hist, wks] = await Promise.all([
+        getClient(id),
+        getClientCurrentPosition(id),
+        getClientHistory(id),
+        getWorks()
+      ]);
+      setClient(c);
+      setCurrentPosition(cp);
+      setClientWorks(wks.filter((w: any) => w.client_id === id));
 
-  // Work + Financial Connection
-  const activeWorks = client.id === "RJSC-0001" ? works : [];
-  const totalBill = activeWorks.reduce((sum, x) => sum + x.bill, 0);
-  const totalCollection = activeWorks.reduce((sum, x) => sum + x.collection, 0);
-  const totalDue = totalBill - totalCollection;
-  const completedWorks = activeWorks.filter(w => w.status === 'Completed');
-  const completedWorkValue = completedWorks.reduce((sum, x) => sum + x.bill, 0);
-  const openWorkValue = totalBill - completedWorkValue;
+      const mappedEvents: CorporateEvent[] = [];
+      hist.registered_office_history?.forEach((e:any) => mappedEvents.push({
+        id: e.id, clientId: e.client_id, type: 'REGISTERED_OFFICE_CHANGE', address: e.address,
+        effectiveFrom: e.effective_from || '', effectiveTo: e.effective_to,
+        filingReference: e.filing_reference, notes: e.notes
+      }));
+      hist.directors?.forEach((e:any) => mappedEvents.push({
+        id: e.id, clientId: e.client_id, type: 'DIRECTOR_CHANGE', fullName: e.full_name,
+        designation: e.designation, appointmentDate: e.appointment_date || '', cessationDate: e.cessation_date,
+        current: e.is_current
+      }));
+      hist.capital_history?.forEach((e:any) => mappedEvents.push({
+        id: e.id, clientId: e.client_id, type: 'CAPITAL_CHANGE', authorizedCapital: e.authorized_capital,
+        paidUpCapital: e.paid_up_capital, effectiveDate: e.effective_date || '', changeType: e.change_type || 'INITIAL'
+      }));
+      hist.shareholders?.forEach((e:any) => mappedEvents.push({
+        id: e.id, clientId: e.client_id, type: 'SHAREHOLDER_CHANGE', shareholderName: e.shareholder_name,
+        shareCount: e.share_count, shareValue: e.share_value, ownershipPercentage: e.ownership_percentage || 0,
+        effectiveFrom: e.effective_from || '', effectiveTo: e.effective_to, current: e.is_current
+      }));
+      hist.name_history?.forEach((e:any) => mappedEvents.push({
+        id: e.id, clientId: e.client_id, type: 'NAME_CHANGE', previousName: e.previous_name,
+        newName: e.new_name, effectiveDate: e.effective_date || ''
+      }));
+      hist.agm_history?.forEach((e:any) => mappedEvents.push({
+        id: e.id, clientId: e.client_id, type: 'AGM', financialYear: e.financial_year,
+        agmDate: e.agm_date, status: e.status
+      }));
+      hist.annual_returns?.forEach((e:any) => mappedEvents.push({
+        id: e.id, clientId: e.client_id, type: 'ANNUAL_RETURN', financialYear: e.financial_year,
+        filedDate: e.filed_date || '', dueDate: '', filingStatus: 'PENDING'
+      }));
+      hist.filings?.forEach((e:any) => mappedEvents.push({
+        id: e.id, clientId: e.client_id, type: 'RJSC_FILING', serviceType: e.service_type,
+        submissionDate: e.submission_date || '', approvalDate: e.approval_date, status: e.status, reference: e.reference, formName: e.service_type, effectiveDate: ''
+      }));
+      hist.compliance_issues?.forEach((e:any) => mappedEvents.push({
+        id: e.id, clientId: e.client_id, type: 'COMPLIANCE_ISSUE', title: e.title,
+        status: e.status, dueDate: e.due_date || '', category: 'GENERAL', identifiedDate: '', severity: 'MEDIUM', resolutionDate: null
+      }));
 
-  // Derivations
-  const curName = getCurrentLegalName(events, client.name);
-  const curRegOffice = getCurrentRegisteredOffice(events);
-  const curCap = getCurrentCapital(events);
-  const curDirs = getCurrentDirectors(events);
-  const curShares = getCurrentShareholders(events);
-  
-  const lastAgm = getLastAGM(events);
-  const lastReturn = getLastAnnualReturn(events);
-  const latestFiling = getLatestFiling(events);
-  const pendingCount = getPendingFilingCount(events);
-  const nextAction = getNextKnownComplianceAction(events);
-  
-  const timeline = buildTimeline(events).filter(t => {
-    if (timelineFilter === "All") return true;
-    if (timelineFilter === "Directors") return t.eventType === 'DIRECTOR_CHANGE';
-    if (timelineFilter === "Shareholders") return t.eventType === 'SHAREHOLDER_CHANGE';
-    if (timelineFilter === "Capital") return t.eventType === 'CAPITAL_CHANGE';
-    if (timelineFilter === "AGM/Returns") return t.eventType === 'AGM' || t.eventType === 'ANNUAL_RETURN';
-    if (timelineFilter === "Filings") return t.eventType === 'RJSC_FILING';
-    if (timelineFilter === "Compliance") return t.eventType === 'COMPLIANCE_ISSUE';
-    return true;
-  });
-
-  const agms = events.filter((e): e is import('@/lib/clients/history-types').AgmHistory => e.type === 'AGM');
-  const returns = events.filter((e): e is import('@/lib/clients/history-types').AnnualReturnHistory => e.type === 'ANNUAL_RETURN');
-
-  const tabs = [
-    "Overview", "Corporate History", "Directors", "Shareholders", "Capital", 
-    "AGM & Returns", "RJSC Filings", "Compliance", "Works", "Financials", "Documents"
-  ];
-
-  const handleSaveRecord = (ev: CorporateEvent) => {
-    if (editEvent) {
-      historyStore.updateEvent(ev);
-    } else {
-      historyStore.addEvent(ev);
+      setEvents(mappedEvents);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const openEdit = (ev: CorporateEvent) => {
-    setEditEvent(ev);
-    setIsModalOpen(true);
-  };
+  useEffect(() => {
+    fetchAllData();
+  }, [id]);
 
-  const openAdd = () => {
-    setEditEvent(null);
-    setIsModalOpen(true);
-  };
+  if (loading) return <div className="p-8 text-center text-slate-500">Loading client profile...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
+  if (!client) return <div className="p-8 text-center text-slate-500">Client not found</div>;
+
+  const timeline = buildTimeline(events);
 
   return (
-    <div className="p-7 space-y-6">
-      <Link href="/clients" className="text-emerald-700 font-extrabold text-sm hover:underline">
-        ← Back to Clients
-      </Link>
-
-      <div className="flex justify-between items-start">
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <div className="text-emerald-700 text-xs font-black tracking-widest">{client.id}</div>
-          <h1 className="text-3xl font-black text-slate-900 mt-1 mb-2">{curName}</h1>
-          <div className="flex gap-2 flex-wrap text-sm font-medium">
-            <Badge tone="success">{client.status}</Badge>
-            <Badge tone="neutral">{client.type}</Badge>
-            <Badge tone="info">Assigned: {client.assigned}</Badge>
-            <Badge tone="neutral">Reg: {client.regNo}</Badge>
-            {client.formerName && <span className="text-slate-500 text-xs self-center ml-2">Formerly: {client.formerName}</span>}
+          <h1 className="text-2xl font-bold text-slate-900">{currentPosition.current_legal_name || client.legal_name}</h1>
+          <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
+            <Badge tone="info">{client.client_code}</Badge>
+            <Badge tone="neutral">{client.entity_type.replace('_', ' ')}</Badge>
+            <Badge tone={currentPosition.current_entity_status === 'Active' ? 'success' : 'warning'}>
+              {currentPosition.current_entity_status || client.status}
+            </Badge>
+            {client.registration_no && (
+              <span className="text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded text-xs">
+                {client.registration_no}
+              </span>
+            )}
           </div>
         </div>
-        <div className="flex gap-3">
-          <button onClick={openAdd} className="bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold hover:bg-slate-50 transition shadow-sm">
-            Add History Record
-          </button>
-          <Link href="/new-work" className="bg-[#0f3d36] text-white px-4 py-2.5 rounded-xl font-bold hover:bg-[#092621] transition shadow-sm">
-            + New Work
+        <div className="flex gap-2">
+          <Link href="/new-work" className="inline-block bg-slate-900 text-white px-4 py-2 rounded-lg font-medium text-sm hover:bg-slate-800 transition-colors">
+            Start New Work
           </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
-        <Stat label="Open Works" value={String(activeWorks.filter(w => w.status !== 'Completed').length)} />
-        <Stat label="Total Bill" value={`৳ ${totalBill.toLocaleString()}`} />
-        <Stat label="Collection" value={`৳ ${totalCollection.toLocaleString()}`} />
-        <Stat label="Outstanding" value={`৳ ${totalDue.toLocaleString()}`} />
-      </div>
-
-      <div className="bg-white border border-slate-200 rounded-xl p-1.5 flex gap-1 overflow-x-auto">
-        {tabs.map(x => (
-          <button key={x} onClick={() => setTab(x)} className={`px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap transition-colors ${tab === x ? 'bg-[#0f3d36] text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>
-            {x}
+      <div className="flex gap-6 border-b border-slate-200">
+        {["Overview", "Corporate History", "Timeline", "Active Works"].map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`pb-3 font-medium text-sm border-b-2 transition-colors ${
+              tab === t ? "border-emerald-600 text-emerald-800" : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            {t}
           </button>
         ))}
       </div>
 
-      {tab === 'Overview' && (
+      {tab === "Overview" && (
         <div className="space-y-6">
-          <h2 className="text-xl font-bold text-slate-900">Current Position Snapshot</h2>
-          <div className="grid grid-cols-2 gap-5">
-            <Panel title="Entity Identification">
-              <Info label="Current Legal Name" value={curName} />
-              <Info label="Entity Status" value={client.status} />
-              <Info label="Entity Type" value={client.type} />
-              <Info label="RJSC Registration No." value={client.regNo || 'Not Available'} />
-              <Info label="Incorporation Date" value={client.incorporationDate || 'Not Available'} />
-              <Info label="TIN" value={client.tin || 'Not Available'} />
-              <Info label="BIN" value={client.bin || 'Not Available'} />
-            </Panel>
-
-            <Panel title="Corporate Structure">
-              <Info label="Current Registered Office" value={curRegOffice?.address || client.registeredOffice || 'Needs Update'} />
-              <Info label="Authorized Capital" value={curCap ? `৳ ${curCap.authorizedCapital.toLocaleString()}` : 'Needs Update'} />
-              <Info label="Paid-up Capital" value={curCap ? `৳ ${curCap.paidUpCapital.toLocaleString()}` : 'Needs Update'} />
-              <Info label="Current Directors" value={curDirs.length > 0 ? String(curDirs.length) : 'Needs Update'} />
-              <Info label="Current Shareholders" value={curShares.length > 0 ? String(curShares.length) : 'Needs Update'} />
-            </Panel>
-            
-            <Panel title="Compliance Snapshot">
-              <Info label="Last AGM Date" value={lastAgm?.agmDate || 'Needs Update'} />
-              <Info label="Last Annual Return" value={lastReturn?.financialYear || 'Needs Update'} />
-              <Info label="Latest RJSC Filing" value={latestFiling?.submissionDate || 'Needs Update'} />
-              <Info label="Pending Compliance" value={String(pendingCount)} />
-              <Info label="Outstanding Balance" value={`৳ ${totalDue.toLocaleString()}`} />
-              <Info label="Next Known Action" value={nextAction?.title || 'None verified'} />
-            </Panel>
-          </div>
-        </div>
-      )}
-
-      {tab === 'Corporate History' && (
-        <Panel title="Corporate Timeline">
-          <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
-            {["All", "Directors", "Shareholders", "Capital", "AGM/Returns", "Filings", "Compliance"].map(f => (
-              <button key={f} onClick={() => setTimelineFilter(f)} className={`px-3 py-1 text-xs font-bold rounded-full border ${timelineFilter === f ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
-                {f}
-              </button>
-            ))}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Stat label="Total Billed (YTD)" value={`৳ ${clientWorks.reduce((sum: number, w: any) => sum + (w.total_bill ? parseFloat(w.total_bill) : 0), 0)}`} />
+            <Stat label="Active Works" value={clientWorks.filter((w:any) => w.status !== 'Completed').length} />
+            <Stat label="Pending Compliance" value={currentPosition.pending_compliance_count} />
           </div>
 
-          {timeline.length === 0 ? (
-            <div className="text-slate-500 py-4 italic text-sm">No corporate events found for this filter.</div>
-          ) : (
-            <div className="space-y-4">
-              {timeline.map((t, i) => (
-                <div key={`${t.id}-${i}`} className="flex gap-4 p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-emerald-100 transition relative group">
-                  <div className="w-28 shrink-0 text-sm font-bold text-slate-500 pt-0.5">{t.date || 'Unknown'}</div>
-                  <div className="flex-1">
-                    <div className="text-xs font-black text-emerald-700 tracking-wider uppercase mb-1">{t.eventType.replace(/_/g, ' ')}</div>
-                    <div className="font-bold text-slate-900">{t.title}</div>
-                    {(t.reference || t.status || t.note) && (
-                      <div className="mt-2 text-sm text-slate-600 flex flex-wrap gap-x-4 gap-y-1">
-                        {t.reference && <div><span className="font-semibold">Ref:</span> {t.reference}</div>}
-                        {t.status && <div><span className="font-semibold">Status:</span> {t.status}</div>}
-                        {t.note && <div className="w-full text-slate-500 italic mt-1">{t.note}</div>}
-                      </div>
-                    )}
-                  </div>
-                  <button onClick={() => openEdit(t.originalEvent)} className="opacity-0 group-hover:opacity-100 absolute top-4 right-4 text-xs font-bold text-slate-400 hover:text-emerald-700 transition">
-                    Edit
-                  </button>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+              <h3 className="font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">Business Profile</h3>
+              <dl className="space-y-3 text-sm">
+                <div className="flex">
+                  <dt className="w-1/3 text-slate-500">Contact</dt>
+                  <dd className="w-2/3 font-medium text-slate-900">{client.contact_person || "-"}</dd>
                 </div>
-              ))}
+                <div className="flex">
+                  <dt className="w-1/3 text-slate-500">Mobile</dt>
+                  <dd className="w-2/3 font-medium text-slate-900">{client.mobile || "-"}</dd>
+                </div>
+                <div className="flex">
+                  <dt className="w-1/3 text-slate-500">Email</dt>
+                  <dd className="w-2/3 font-medium text-slate-900">{client.email || "-"}</dd>
+                </div>
+                <div className="flex">
+                  <dt className="w-1/3 text-slate-500">TIN</dt>
+                  <dd className="w-2/3 font-medium text-slate-900">{client.tin || "-"}</dd>
+                </div>
+                <div className="flex">
+                  <dt className="w-1/3 text-slate-500">BIN</dt>
+                  <dd className="w-2/3 font-medium text-slate-900">{client.bin || "-"}</dd>
+                </div>
+                <div className="flex">
+                  <dt className="w-1/3 text-slate-500">Assigned</dt>
+                  <dd className="w-2/3 font-medium text-slate-900">{client.assigned_staff || "-"}</dd>
+                </div>
+              </dl>
             </div>
-          )}
-        </Panel>
-      )}
 
-      {tab === 'Directors' && (
-        <Panel title="Director History">
-          {events.filter(e => e.type === 'DIRECTOR_CHANGE').length === 0 ? (
-             <div className="text-slate-500 py-4 italic text-sm">No director history recorded.</div>
-          ) : (
-            <div className="space-y-4">
-              {events.filter((e): e is any => e.type === 'DIRECTOR_CHANGE').map((d, i) => (
-                 <div key={i} className={`p-4 rounded-xl border relative group ${d.current ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
-                   <div className="flex justify-between items-start">
-                     <div>
-                       <div className="font-bold text-lg text-slate-900">{d.fullName}</div>
-                       <div className="text-sm font-medium text-slate-600">{d.designation}</div>
-                     </div>
-                     {d.current ? <Badge tone="success">Current</Badge> : <Badge tone="neutral">Ceased</Badge>}
-                   </div>
-                   <div className="mt-3 text-sm text-slate-500 grid grid-cols-2 gap-2">
-                     <div><span className="font-semibold text-slate-700">Appointed:</span> {d.appointmentDate}</div>
-                     {d.cessationDate && <div><span className="font-semibold text-slate-700">Ceased:</span> {d.cessationDate}</div>}
-                     {d.sourceDocument && <div><span className="font-semibold text-slate-700">Source:</span> {d.sourceDocument}</div>}
-                   </div>
-                   <button onClick={() => openEdit(d)} className="opacity-0 group-hover:opacity-100 absolute top-4 right-4 mt-8 text-xs font-bold text-slate-400 hover:text-emerald-700 transition">Edit</button>
-                 </div>
-              ))}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
+              <div>
+                <h3 className="font-bold text-slate-900 mb-3 border-b border-slate-100 pb-2">Registered Office</h3>
+                <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-3 rounded">
+                  {currentPosition.current_registered_office || "Not on file"}
+                </p>
+              </div>
+
+              {client.entity_type.includes('COMPANY') && (
+                <div>
+                  <h3 className="font-bold text-slate-900 mb-3 border-b border-slate-100 pb-2">Capital Structure</h3>
+                  <div className="flex gap-8 text-sm">
+                    <div>
+                      <div className="text-slate-500 mb-1">Authorized</div>
+                      <div className="font-medium text-slate-900">৳ {(currentPosition.authorized_capital || 0).toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div className="text-slate-500 mb-1">Paid Up</div>
+                      <div className="font-medium text-slate-900">৳ {(currentPosition.paid_up_capital || 0).toLocaleString()}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </Panel>
-      )}
-
-      {tab === 'AGM & Returns' && (
-        <Panel title="AGM & Annual Return Position">
-          {agms.length === 0 && returns.length === 0 ? (
-            <div className="text-slate-500 py-4 italic text-sm">No AGM or annual return history recorded.</div>
-          ) : (
-            <table className="w-full text-left text-sm mt-2">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">Financial Year</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">AGM Date</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">Return Due</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">Return Filed</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">Status</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">Reference</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {Array.from(new Set([...agms.map(a => a.financialYear), ...returns.map(r => r.financialYear)])).sort().reverse().map(fy => {
-                  const agm = agms.find(a => a.financialYear === fy);
-                  const ret = returns.find(r => r.financialYear === fy);
-                  const status = getComplianceStatus(ret?.dueDate || null, ret?.filedDate || null);
-                  return (
-                    <tr key={fy}>
-                      <td className="p-3 font-bold text-slate-700">{fy}</td>
-                      <td className="p-3 text-slate-600">{agm?.agmDate || <span className="text-slate-300">-</span>}</td>
-                      <td className="p-3 text-slate-600">{ret?.dueDate || <span className="text-slate-300">-</span>}</td>
-                      <td className="p-3 text-slate-600">{ret?.filedDate || <span className="text-slate-300">-</span>}</td>
-                      <td className="p-3">
-                        <Badge tone={status === 'FILED' ? 'success' : status === 'OVERDUE' ? 'danger' : 'warning'}>{status}</Badge>
-                      </td>
-                      <td className="p-3 text-slate-600">{ret?.acknowledgementReference || <span className="text-slate-300">-</span>}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
-        </Panel>
-      )}
-
-      {tab === 'Financials' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-5 gap-4">
-            <Panel title="Total Bill"><div className="text-xl font-black text-slate-900 mt-2">৳ {totalBill.toLocaleString()}</div></Panel>
-            <Panel title="Total Collection"><div className="text-xl font-black text-emerald-700 mt-2">৳ {totalCollection.toLocaleString()}</div></Panel>
-            <Panel title="Outstanding"><div className="text-xl font-black text-red-600 mt-2">৳ {totalDue.toLocaleString()}</div></Panel>
-            <Panel title="Completed Works Value"><div className="text-xl font-black text-emerald-700 mt-2">৳ {completedWorkValue.toLocaleString()}</div></Panel>
-            <Panel title="Open Works Value"><div className="text-xl font-black text-amber-700 mt-2">৳ {openWorkValue.toLocaleString()}</div></Panel>
           </div>
-          
-          <Panel title="Work Billing Details">
-            {activeWorks.length === 0 ? (
-              <div className="text-slate-500 py-4 italic text-sm">No billing records found.</div>
-            ) : (
-              <table className="w-full text-left text-sm mt-2">
-                <thead><tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">Work ID</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">Service</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">Status</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs text-right">Bill</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs text-right">Collection</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs text-right">Outstanding</th>
-                </tr></thead>
-                <tbody className="divide-y divide-slate-100">
-                  {activeWorks.map((w,i) => (
-                    <tr key={i}>
-                      <td className="p-3 font-medium text-slate-600">{w.id}</td>
-                      <td className="p-3 font-medium text-slate-900">{w.service}</td>
-                      <td className="p-3"><Badge tone="neutral">{w.status}</Badge></td>
-                      <td className="p-3 text-right">৳ {w.bill.toLocaleString()}</td>
-                      <td className="p-3 text-right text-emerald-700">৳ {w.collection.toLocaleString()}</td>
-                      <td className="p-3 text-right font-bold text-red-600">৳ {(w.bill - w.collection).toLocaleString()}</td>
-                    </tr>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+              <h3 className="font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">Current Board</h3>
+              {currentPosition.current_directors?.length > 0 ? (
+                <ul className="space-y-3">
+                  {currentPosition.current_directors.map((d: any) => (
+                    <li key={d.id} className="flex justify-between items-center text-sm">
+                      <span className="font-medium text-slate-900">{d.full_name}</span>
+                      <span className="text-slate-500 text-xs px-2 py-0.5 bg-slate-100 rounded">{d.designation}</span>
+                    </li>
                   ))}
-                </tbody>
-              </table>
+                </ul>
+              ) : (
+                <p className="text-sm text-slate-500 italic">No current directors recorded.</p>
+              )}
+            </div>
+
+            {client.entity_type.includes('COMPANY') && (
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h3 className="font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">Shareholding</h3>
+                {currentPosition.current_shareholders?.length > 0 ? (
+                  <ul className="space-y-3">
+                    {currentPosition.current_shareholders.map((s: any) => (
+                      <li key={s.id} className="flex justify-between items-center text-sm">
+                        <span className="font-medium text-slate-900">{s.shareholder_name}</span>
+                        <span className="text-slate-600 font-medium">{s.share_count.toLocaleString()} shares</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-500 italic">No shareholders recorded.</p>
+                )}
+              </div>
             )}
-          </Panel>
+          </div>
         </div>
       )}
 
-      {tab === 'Documents' && (
-        <Panel title="Client Documents">
-          {/* Mock document for now, as instructed: Use existing frontend/local document metadata only. If no documents exist: "No client documents recorded." */}
-          {/* We do not have document metadata, so force empty state */}
-          {false ? (
-            <table className="w-full text-left text-sm mt-2">
-              <thead><tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">Document Name</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">Category</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">Related Work</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">Date</th>
-                  <th className="p-3 text-slate-500 font-bold uppercase text-xs">Status</th>
-              </tr></thead>
-              <tbody className="divide-y divide-slate-100">
-              </tbody>
-            </table>
+      {tab === "Corporate History" && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
+          <div className="flex justify-between items-center">
+             <h3 className="font-bold text-slate-900 text-lg">Historical Records</h3>
+             <PrimaryButton onClick={() => { setEditEvent(null); setIsModalOpen(true); }}>
+                Add Record
+             </PrimaryButton>
+          </div>
+          <div className="text-sm text-slate-500 italic">History records managed via API.</div>
+
+          <HistoryRecordModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            clientId={id}
+            onSave={() => {
+              setIsModalOpen(false);
+              fetchAllData();
+            }}
+          />
+        </div>
+      )}
+
+      {tab === "Timeline" && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <h3 className="font-bold text-slate-900 mb-6 text-lg">Event Timeline</h3>
+          <div className="space-y-6">
+            {timeline.length === 0 ? (
+              <p className="text-sm text-slate-500 italic">No events recorded.</p>
+            ) : (
+              timeline.map((ev: any, idx: number) => (
+                <div key={ev.id || idx} className="relative pl-8 mb-6">
+                  <div className="absolute left-0 top-0 bottom-0 w-px bg-slate-200"></div>
+                  <div className="absolute left-[-4px] top-1 w-2 h-2 rounded-full bg-emerald-500 ring-4 ring-white"></div>
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="font-semibold text-slate-700 bg-slate-200/50 px-2 py-0.5 rounded text-xs">{(ev.type || '').replace(/_/g, ' ')}</span>
+                          <span className="text-xs text-slate-500">{ev.date}</span>
+                        </div>
+                        <p className="text-slate-600 mt-2">{ev.title || ev.notes || 'Recorded in system'}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === "Active Works" && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <h3 className="font-bold text-slate-900 mb-4 text-lg">Work Register</h3>
+          {clientWorks.length === 0 ? (
+             <p className="text-sm text-slate-500 italic">No works found.</p>
           ) : (
-            <div className="text-slate-500 py-4 italic text-sm">No client documents recorded.</div>
+             <ul className="space-y-3">
+               {clientWorks.map(w => (
+                 <li key={w.id} className="flex justify-between items-center text-sm p-3 bg-slate-50 rounded border border-slate-100">
+                   <div>
+                     <div className="font-medium text-slate-900">{w.service_id}</div>
+                     <div className="text-xs text-slate-500 mt-1">{w.work_code}</div>
+                   </div>
+                   <Badge tone={w.status === 'Completed' ? 'success' : 'warning'}>{w.status}</Badge>
+                 </li>
+               ))}
+             </ul>
           )}
-        </Panel>
+        </div>
       )}
-
-      {tab === 'Works' && (
-        <Panel title="Work History">
-          {activeWorks.length === 0 ? (
-             <div className="text-slate-500 py-4 italic text-sm">No works recorded.</div>
-          ) : (
-             <table className="w-full text-left text-sm mt-2">
-               <thead><tr className="border-b border-slate-200 bg-slate-50"><th className="p-3 text-slate-500 font-bold uppercase text-xs">Service</th><th className="p-3 text-slate-500 font-bold uppercase text-xs">Status</th><th className="p-3 text-slate-500 font-bold uppercase text-xs">Due Date</th><th className="p-3 text-slate-500 font-bold uppercase text-xs text-right">Outstanding</th></tr></thead>
-               <tbody className="divide-y divide-slate-100">
-                 {activeWorks.map((w,i) => (
-                   <tr key={i}>
-                     <td className="p-3 font-medium text-slate-900">{w.service}</td>
-                     <td className="p-3"><Badge tone="neutral">{w.status}</Badge></td>
-                     <td className="p-3 text-slate-600">{w.due}</td>
-                     <td className="p-3 font-bold text-red-600 text-right">৳ {(w.bill - w.collection).toLocaleString()}</td>
-                   </tr>
-                 ))}
-               </tbody>
-             </table>
-          )}
-        </Panel>
-      )}
-
-      {['Shareholders', 'Capital', 'RJSC Filings', 'Compliance'].includes(tab) && (
-        <Panel title={tab}>
-           <div className="text-slate-500 py-4 italic text-sm">No {tab.toLowerCase()} records have been migrated yet.</div>
-        </Panel>
-      )}
-
-      <HistoryRecordModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSave={handleSaveRecord} 
-        clientId={client.id}
-        editEvent={editEvent}
-      />
-    </div>
-  );
-}
-
-function Panel({ title, children }: { title: string; children: React.ReactNode; }) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-      <h2 className="text-lg font-bold text-slate-900 mb-4">{title}</h2>
-      {children}
-    </div>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string; }) {
-  return (
-    <div className="flex justify-between items-center py-2.5 border-b border-slate-50 last:border-0">
-      <span className="text-sm font-semibold text-slate-500">{label}</span>
-      <strong className="text-sm text-slate-900 text-right max-w-[60%] leading-snug">{value}</strong>
     </div>
   );
 }
