@@ -25,7 +25,10 @@ def test_health_check():
 def test_status_check():
     response = client.get("/api/status")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "database": "not_checked"}
+    data = response.json()
+    assert data["status"] == "ok"
+    assert "storage_provider" in data
+
 
 def test_startup_without_db():
     assert app.title == "RJSC Backend"

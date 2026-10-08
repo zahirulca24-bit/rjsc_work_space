@@ -51,10 +51,10 @@ def check_duplicate_name(db: Session, legal_name: str) -> List[dict]:
     normalized_name = re.sub(r'[^a-zA-Z0-9]', '', legal_name.lower())
     if not normalized_name:
         return []
-        
+
     stmt = select(Client.id, Client.legal_name, Client.client_code)
     results = db.execute(stmt).all()
-    
+
     potential_duplicates = []
     for row in results:
         norm_row = re.sub(r'[^a-zA-Z0-9]', '', row.legal_name.lower())
@@ -85,7 +85,7 @@ def list_clients(
         stmt = stmt.where(Client.entity_type == entity_type)
     if status:
         stmt = stmt.where(Client.status == status)
-        
+
     stmt = stmt.order_by(desc(Client.created_at))
     clients = db.execute(stmt).scalars().all()
     return clients
@@ -98,13 +98,13 @@ def create_client(client_in: ClientCreate, db: Session = Depends(get_db)):
         ).scalars().first()
         if existing:
             raise HTTPException(status_code=409, detail="Registration number already exists")
-    
+
     client_code = generate_client_code(db)
-    
+
     while db.execute(select(Client).where(Client.client_code == client_code)).scalars().first():
         num = int(client_code.split("-")[1])
         client_code = f"RJSC-{num + 1:04d}"
-        
+
     db_client = Client(
         client_code=client_code,
         legal_name=client_in.legal_name,
@@ -122,7 +122,7 @@ def create_client(client_in: ClientCreate, db: Session = Depends(get_db)):
         assigned_staff=client_in.assigned_staff,
         notes=client_in.notes
     )
-    
+
     db.add(db_client)
     try:
         db.commit()
@@ -130,7 +130,7 @@ def create_client(client_in: ClientCreate, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create client")
-        
+
     return db_client
 
 @router.get("/{client_id}", response_model=ClientRead)
@@ -145,25 +145,25 @@ def update_client(client_id: UUID, client_update: ClientUpdate, db: Session = De
     client = db.get(Client, client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-        
+
     if client_update.registration_no and client_update.registration_no != client.registration_no:
         existing = db.execute(
             select(Client).where(Client.registration_no == client_update.registration_no)
         ).scalars().first()
         if existing:
             raise HTTPException(status_code=409, detail="Registration number already exists")
-            
+
     update_data = client_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(client, key, value)
-        
+
     try:
         db.commit()
         db.refresh(client)
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update client")
-        
+
     return client
 
 @router.get("/{client_id}/current-position")
@@ -171,43 +171,43 @@ def get_current_position(client_id: UUID, db: Session = Depends(get_db)):
     client = db.get(Client, client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-        
+
     # Office
     stmt_office = select(RegisteredOfficeHistory).where(
         RegisteredOfficeHistory.client_id == client_id
     ).order_by(desc(RegisteredOfficeHistory.effective_from), desc(RegisteredOfficeHistory.created_at))
     latest_office = db.execute(stmt_office).scalars().first()
-    
+
     # Capital
     stmt_capital = select(CapitalHistory).where(
         CapitalHistory.client_id == client_id
     ).order_by(desc(CapitalHistory.effective_date), desc(CapitalHistory.created_at))
     latest_capital = db.execute(stmt_capital).scalars().first()
-    
+
     # Directors
     stmt_directors = select(Director).where(
         Director.client_id == client_id, Director.is_current == True
     )
     current_directors = db.execute(stmt_directors).scalars().all()
-    
+
     # Shareholders
     stmt_shareholders = select(Shareholder).where(
         Shareholder.client_id == client_id, Shareholder.is_current == True
     )
     current_shareholders = db.execute(stmt_shareholders).scalars().all()
-    
+
     # AGM
     stmt_agm = select(AgmHistory).where(
         AgmHistory.client_id == client_id
     ).order_by(desc(AgmHistory.financial_year), desc(AgmHistory.created_at))
     last_agm = db.execute(stmt_agm).scalars().first()
-    
+
     # Annual Return
     stmt_ar = select(AnnualReturnHistory).where(
         AnnualReturnHistory.client_id == client_id
     ).order_by(desc(AnnualReturnHistory.financial_year), desc(AnnualReturnHistory.created_at))
     last_ar = db.execute(stmt_ar).scalars().first()
-    
+
     # Compliance
     stmt_comp = select(ComplianceIssue).where(
         ComplianceIssue.client_id == client_id,
@@ -240,3 +240,41 @@ def get_current_position(client_id: UUID, db: Session = Depends(get_db)):
 
 from app.api.routes.history import router as history_router
 HISTORY_ROUTER = history_router
+
+from uuid import UUID
+@router.get("/{client_id}/financial-summary")
+def get_client_financial_summary(client_id: UUID, db: Session = Depends(get_db)):
+    from app.models.finance import Invoice, Transaction
+    from app.models.work import Work
+    from sqlalchemy import func
+    from decimal import Decimal
+
+    c = db.query(Client).filter(Client.id == client_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    billed = db.query(func.sum(Invoice.total_amount)).filter(
+        Invoice.client_id == client_id,
+        Invoice.status.in_(["ISSUED", "PARTIALLY_PAID", "PAID"])
+    ).scalar() or Decimal("0")
+
+    collected = db.query(func.sum(Transaction.amount)).filter(
+        Transaction.client_id == client_id,
+        Transaction.transaction_type == "COLLECTION"
+    ).scalar() or Decimal("0")
+
+    completed_works_val = db.query(func.sum(Invoice.total_amount)).join(Work, Invoice.work_id == Work.id).filter(
+        Invoice.client_id == client_id,
+        Invoice.status.in_(["ISSUED", "PARTIALLY_PAID", "PAID"]),
+        Work.status == "COMPLETED"
+    ).scalar() or Decimal("0")
+
+    open_works_val = billed - completed_works_val
+
+    return {
+        "total_billed": str(billed),
+        "total_collected": str(collected),
+        "outstanding": str(billed - collected),
+        "completed_works_value": str(completed_works_val),
+        "open_works_value": str(open_works_val)
+    }

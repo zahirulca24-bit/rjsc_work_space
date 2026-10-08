@@ -125,7 +125,7 @@ export default function ClientProfilePage() {
       </div>
 
       <div className="flex gap-6 border-b border-slate-200">
-        {["Overview", "Corporate History", "Timeline", "Active Works"].map((t) => (
+        {["Overview", "Corporate History", "Timeline", "Active Works", "Documents", "Financials"].map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -306,6 +306,144 @@ export default function ClientProfilePage() {
                ))}
              </ul>
           )}
+        </div>
+      )}
+      {tab === "Documents" && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <ClientDocuments client_id={params.id as string} />
+        </div>
+      )}
+      {tab === "Financials" && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <ClientFinancials client_id={params.id as string} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ClientFinancials({ client_id }: { client_id: string }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch((process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000") + "/api/clients/" + client_id + "/financial-summary")
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(console.error);
+  }, [client_id]);
+
+  if (loading) return <div className="text-sm">Loading financials...</div>;
+  if (!data) return <div className="text-sm text-slate-500">No financial data found.</div>;
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="border p-4 rounded-md bg-slate-50">
+        <div className="text-sm text-slate-500">Total Billed</div>
+        <div className="text-xl font-bold">৳ {parseFloat(data.total_billed || "0").toLocaleString()}</div>
+      </div>
+      <div className="border p-4 rounded-md bg-slate-50">
+        <div className="text-sm text-slate-500">Total Collected</div>
+        <div className="text-xl font-bold">৳ {parseFloat(data.total_collected || "0").toLocaleString()}</div>
+      </div>
+      <div className="border p-4 rounded-md bg-slate-50">
+        <div className="text-sm text-slate-500">Outstanding</div>
+        <div className="text-xl font-bold text-red-600">৳ {parseFloat(data.outstanding || "0").toLocaleString()}</div>
+      </div>
+      <div className="border p-4 rounded-md bg-slate-50">
+        <div className="text-sm text-slate-500">Completed Works Value</div>
+        <div className="text-xl font-bold">৳ {parseFloat(data.completed_works_value || "0").toLocaleString()}</div>
+      </div>
+      <div className="border p-4 rounded-md bg-slate-50">
+        <div className="text-sm text-slate-500">Open Works Value</div>
+        <div className="text-xl font-bold">৳ {parseFloat(data.open_works_value || "0").toLocaleString()}</div>
+      </div>
+    </div>
+  );
+}
+
+function ClientDocuments({ client_id }: { client_id: string }) {
+  const [docs, setDocs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [file, setFile] = useState<File | null>(null);
+  const [category, setCategory] = useState("OTHER");
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState("");
+
+  const categories = [
+    "INCORPORATION", "MOA", "AOA", "FORM_XII", "FORM_VI",
+    "ANNUAL_RETURN", "AGM", "SHARE_TRANSFER", "DIRECTOR_CHANGE",
+    "REGISTERED_OFFICE", "CAPITAL", "MORTGAGE_CHARGE", "CERTIFIED_COPY",
+    "PAYMENT_CHALLAN", "ACKNOWLEDGEMENT", "BOARD_RESOLUTION",
+    "NID_PASSPORT", "TIN_BIN", "OTHER"
+  ];
+
+  const fetchDocs = async () => {
+    setLoading(true);
+    try {
+      const { listDocuments } = await import("@/lib/api/documents");
+      const data = await listDocuments({ client_id });
+      setDocs(data);
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchDocs();
+  }, [client_id]);
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    setError("");
+    try {
+      const { uploadDocument } = await import("@/lib/api/documents");
+      await uploadDocument(file, category, client_id, undefined, undefined, notes);
+      setFile(null);
+      setCategory("OTHER");
+      setNotes("");
+      fetchDocs();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  if (loading) return <div className="text-sm text-slate-500">Loading documents...</div>;
+
+  return (
+    <div className="space-y-6">
+      <form onSubmit={handleUpload} className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+        <div className="font-bold mb-3">Upload Document</div>
+        {error && <div className="text-red-600 text-sm mb-2">{error}</div>}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+          <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="text-sm border p-2 rounded" />
+          <select value={category} onChange={e => setCategory(e.target.value)} className="text-sm border p-2 rounded">
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input type="text" placeholder="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} className="text-sm border p-2 rounded" />
+        </div>
+        <button type="submit" disabled={!file} className="bg-emerald-600 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50">Upload</button>
+      </form>
+
+      {docs.length === 0 ? (
+        <p className="text-sm text-slate-500 italic">No client documents recorded.</p>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {docs.map(doc => {
+            // Need getDocumentDownloadUrl, but since it's an async component, let's just use the direct URL
+            const url = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000") + "/api/documents/" + doc.id + "/download";
+            return (
+              <div key={doc.id} className="p-3 bg-slate-50 rounded border flex justify-between items-center text-sm">
+                <div className="truncate">
+                  <div className="font-medium text-slate-800 truncate" title={doc.document_name}>{doc.document_name}</div>
+                  <div className="text-slate-500 text-xs mt-1">{doc.category}</div>
+                </div>
+                <a href={url} target="_blank" className="ml-3 px-3 py-1 bg-slate-200 hover:bg-slate-300 rounded text-xs font-medium text-slate-800">Download</a>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

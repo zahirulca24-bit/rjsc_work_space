@@ -6,3 +6,7 @@ alembic
 pydantic-settings
 pytest
 httpx
+python-multipart
+google-api-python-client
+google-auth
+google-auth-httplib2

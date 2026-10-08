@@ -1,14 +1,11 @@
 node_modules/
 .next/
-.env
 .env.local
 *.log
 app-backup-*/
 components-backup-*/
 "New folder/"
 tsconfig.tsbuildinfo
-
-# Python
 .venv/
 backend/.venv/
 __pycache__/
@@ -16,4 +13,9 @@ __pycache__/
 .pytest_cache/
 *.db
 backend/*.db
+.env
 backend/.env
+backend/storage/
+backend/test-storage/
+service-account.json
+google-service-account.json

@@ -27,8 +27,8 @@ def upgrade() -> None:
     sa.Column('entity_id', sa.UUID(), nullable=False),
     sa.Column('action', sa.String(), nullable=False),
     sa.Column('performed_by', sa.String(), nullable=True),
-    sa.Column('old_values', sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'), nullable=True),
-    sa.Column('new_values', sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'), nullable=True),
+    sa.Column('old_values', sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), 'postgresql'), nullable=True),
+    sa.Column('new_values', sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), 'postgresql'), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
@@ -345,9 +345,9 @@ def upgrade() -> None:
     sa.Column('fee_source_reference', sa.String(), nullable=True),
     sa.Column('deadline_rule_id', sa.String(), nullable=True),
     sa.Column('deadline_source_reference', sa.String(), nullable=True),
-    sa.Column('document_rule_snapshot', sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'), nullable=True),
-    sa.Column('fee_breakdown_snapshot', sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'), nullable=True),
-    sa.Column('legal_reference_snapshot', sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'), nullable=True),
+    sa.Column('document_rule_snapshot', sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), 'postgresql'), nullable=True),
+    sa.Column('fee_breakdown_snapshot', sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), 'postgresql'), nullable=True),
+    sa.Column('legal_reference_snapshot', sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), 'postgresql'), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['work_id'], ['works.id'], ),
     sa.PrimaryKeyConstraint('id'),

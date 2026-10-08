@@ -47,11 +47,11 @@ def list_works(db: Session = Depends(get_db)):
 @router.post("", response_model=WorkRead)
 def create_work(work_in: WorkCreateWithSnapshot, db: Session = Depends(get_db)):
     work_code = generate_work_code(db)
-    
+
     total_bill = None
     if work_in.government_fee is not None:
         total_bill = work_in.professional_fee + work_in.government_fee + work_in.other_cost
-        
+
     db_work = Work(
         work_code=work_code,
         client_id=work_in.client_id,
@@ -72,7 +72,7 @@ def create_work(work_in: WorkCreateWithSnapshot, db: Session = Depends(get_db)):
     )
     db.add(db_work)
     db.flush()
-    
+
     if work_in.rule_snapshot:
         snap = work_in.rule_snapshot
         db_snap = WorkRuleSnapshot(
@@ -88,14 +88,14 @@ def create_work(work_in: WorkCreateWithSnapshot, db: Session = Depends(get_db)):
             legal_reference_snapshot=snap.get("legal_reference_snapshot")
         )
         db.add(db_snap)
-        
+
     try:
         db.commit()
         db.refresh(db_work)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create work")
-        
+
     return db_work
 
 @router.get("/{work_id}", response_model=WorkRead)
@@ -110,21 +110,96 @@ def update_work(work_id: UUID, work_update: WorkUpdate, db: Session = Depends(ge
     work = db.get(Work, work_id)
     if not work:
         raise HTTPException(status_code=404, detail="Work not found")
-        
+
     update_data = work_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(work, key, value)
-        
+
     if work.government_fee is not None:
         work.total_bill = work.professional_fee + work.government_fee + work.other_cost
     else:
         work.total_bill = None
-        
+
     try:
         db.commit()
         db.refresh(work)
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update work")
-        
+
     return work
+
+from app.models.work import WorkChecklist
+
+class ChecklistItemRead(BaseModel):
+    id: UUID
+    work_id: UUID
+    item_code: Optional[str]
+    item_text: str
+    status: str
+    source_reference: Optional[str]
+    sort_order: int
+    completed_at: Optional[datetime]
+    completed_by: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+class ChecklistItemUpdate(BaseModel):
+    status: str
+
+@router.get("/{work_id}/checklist", response_model=List[ChecklistItemRead])
+def get_checklist(work_id: UUID, db: Session = Depends(get_db)):
+    work = db.get(Work, work_id)
+    if not work:
+        raise HTTPException(status_code=404, detail="Work not found")
+
+    stmt = select(WorkChecklist).where(WorkChecklist.work_id == work_id).order_by(WorkChecklist.sort_order)
+    return db.execute(stmt).scalars().all()
+
+@router.patch("/{work_id}/checklist/{item_id}", response_model=ChecklistItemRead)
+def update_checklist_item(work_id: UUID, item_id: UUID, payload: ChecklistItemUpdate, db: Session = Depends(get_db)):
+    item = db.get(WorkChecklist, item_id)
+    if not item or item.work_id != work_id:
+        raise HTTPException(status_code=404, detail="Checklist item not found")
+
+    item.status = payload.status
+    if payload.status == "COMPLETED":
+        item.completed_at = datetime.utcnow()
+    else:
+        item.completed_at = None
+
+    db.commit()
+    db.refresh(item)
+    return item
+
+from uuid import UUID
+@router.get("/{work_id}/financial-summary")
+def get_work_financial_summary(work_id: UUID, db: Session = Depends(get_db)):
+    from app.models.finance import Invoice, Transaction
+    from sqlalchemy import func
+    from decimal import Decimal
+
+    w = db.query(Work).filter(Work.id == work_id).first()
+    if not w:
+        raise HTTPException(status_code=404, detail="Work not found")
+
+    billed = db.query(func.sum(Invoice.total_amount)).filter(
+        Invoice.work_id == work_id,
+        Invoice.status.in_(["ISSUED", "PARTIALLY_PAID", "PAID"])
+    ).scalar() or Decimal("0")
+
+    collected = db.query(func.sum(Transaction.amount)).filter(
+        Transaction.work_id == work_id,
+        Transaction.transaction_type == "COLLECTION"
+    ).scalar() or Decimal("0")
+
+    return {
+        "professional_fee": str(w.professional_fee or 0),
+        "government_fee": str(w.government_fee) if w.government_fee is not None else None,
+        "other_cost": str(w.other_cost or 0),
+        "total_bill": str((w.professional_fee or 0) + (w.government_fee or 0) + (w.other_cost or 0)),
+        "invoice_total": str(billed),
+        "collection_total": str(collected),
+        "outstanding": str(billed - collected)
+    }

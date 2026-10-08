@@ -34,3 +34,9 @@ export const updateWork = async (id: string, workData: any) => {
     if (!res.ok) throw new Error("Failed to update work");
     return res.json();
 };
+
+export const getWorkFinancialSummary = async (id: string) => {
+    const res = await fetch(`${API_BASE}/api/works/${id}/financial-summary`);
+    if (!res.ok) throw new Error("Failed to fetch work financial summary");
+    return res.json();
+};
