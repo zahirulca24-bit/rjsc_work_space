@@ -13,6 +13,7 @@ export default function Page(){
  const [serviceId, setServiceId] = useState(services[4].id);
  const [fee, setFee] = useState(5000); 
  const [other, setOther] = useState(300);
+ const [securedAmount, setSecuredAmount] = useState(0);
 
  const selectedService = services.find(x => x.id === serviceId);
  const availableEntities = selectedService?.entityTypes || [];
@@ -21,7 +22,8 @@ export default function Page(){
  const feeResult = useMemo(() => calculateRJSCFee({
    serviceId,
    entityType: currentEntity,
- }), [serviceId, currentEntity]);
+   securedAmount: securedAmount
+ }), [serviceId, currentEntity, securedAmount]);
 
  const docs = getRequiredDocuments(serviceId, currentEntity);
  const rjscFee = feeResult ? feeResult.totalFee : 0;
@@ -40,6 +42,9 @@ export default function Page(){
       <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Client<select value={client} onChange={e=>setClient(e.target.value)} className={fieldClass}>{clients.map(c=><option key={c.id}>{c.name}</option>)}</select></label>
       <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Entity Type<select value={currentEntity} onChange={e=>setEntityType(e.target.value as EntityType)} className={fieldClass}>{availableEntities.map(e=><option key={e} value={e}>{e.replace('_', ' ')}</option>)}</select></label>
       <label className="text-xs font-bold uppercase tracking-wide text-slate-600">RJSC Service<select value={serviceId} onChange={e=>setServiceId(e.target.value)} className={fieldClass}>{services.map(x=><option key={x.id} value={x.id}>{x.serviceName}</option>)}</select></label>
+      {serviceId === 'mortgage-charge-registration' && (
+        <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Secured Amount<input type="number" value={securedAmount} onChange={e=>setSecuredAmount(Number(e.target.value))} className={fieldClass}/></label>
+      )}
       <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Period / Year<input defaultValue="FY 2025-26" className={fieldClass}/></label>
       <label className="text-xs font-bold uppercase tracking-wide text-slate-600">Assigned To<select className={fieldClass}><option>Noyon</option><option>Hemadry Roy</option><option>Md. Bayezid</option></select></label>
       <div className="hidden md:block"></div>
@@ -68,7 +73,11 @@ export default function Page(){
       <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
         <BriefcaseBusiness size={16} className="text-emerald-700"/>
         <div className="mt-3 text-[10px] font-bold uppercase tracking-wide text-slate-400">Total Bill</div>
-        <div className="mt-1 text-lg font-bold">৳ {(fee + other + (feeResult ? rjscFee : 0)).toLocaleString()}</div>
+        {feeResult ? (
+          <div className="mt-1 text-lg font-bold">৳ {(fee + other + rjscFee).toLocaleString()}</div>
+        ) : (
+          <div className="mt-1 text-xs font-bold text-amber-600">Incomplete — Government Fee Pending</div>
+        )}
       </div>
       <div className="col-span-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
         <div className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Next Action</div>

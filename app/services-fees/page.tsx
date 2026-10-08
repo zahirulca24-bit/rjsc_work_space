@@ -1,6 +1,6 @@
 import { PageTitle, Card, Badge } from "@/components/UI";
 import { services } from "@/lib/rjsc/services";
-import { getLegalReferences } from "@/lib/rjsc/rule-engine";
+import { getLegalReferences, getFeeRule } from "@/lib/rjsc/rule-engine";
 import { EntityType } from "@/lib/rjsc/types";
 
 export default function Page() {
@@ -24,6 +24,7 @@ export default function Page() {
               {services.map(s => {
                 const isNeedsReview = s.sourceStatus === 'NEEDS_SOURCE_REVIEW';
                 const refs = getLegalReferences(s.id, s.entityTypes[0] || EntityType.PRIVATE_COMPANY);
+                const hasFeeRule = s.entityTypes.some(e => getFeeRule(s.id, e) !== null);
 
                 return (
                   <tr className="border-t" key={s.id}>
@@ -39,7 +40,7 @@ export default function Page() {
                       </div>
                     </td>
                     <td className="p-3">
-                      {s.feeRuleId ? (
+                      {hasFeeRule ? (
                          <span className="text-emerald-600 font-medium">Configured</span>
                       ) : (
                          <span className="text-amber-600 font-medium">Needs Source Review</span>

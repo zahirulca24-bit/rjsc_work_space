@@ -10,6 +10,7 @@ export interface FeeCalculationParams {
   entityType: EntityType;
   documentCount?: number;
   authorizedCapital?: number;
+  securedAmount?: number;
   yearsLate?: number;
   effectiveDate?: string;
   certifiedCopyType?: 'memorandum' | 'articles' | 'other' | 'incorporation' | 'commencement' | 'any' | 'comparison' | 'inspection';
@@ -31,12 +32,23 @@ export const getRequiredDocuments = (serviceId: string, entityType: EntityType):
 };
 
 export const getFeeRule = (serviceId: string, entityType: EntityType, effectiveDate?: string): FeeRule | null => {
-  const rule = getFeeRuleForService(serviceId, entityType);
-  if (!rule) {
-    const fallbackRule = feeRules.find(r => r.serviceId === serviceId && r.entityType === 'ALL');
-    return fallbackRule || null;
+  let relevantRules = feeRules.filter(r => r.serviceId === serviceId);
+
+  if (effectiveDate) {
+    relevantRules = relevantRules.filter(r => {
+      const fromValid = r.effectiveFrom <= effectiveDate;
+      const toValid = r.effectiveTo === null || effectiveDate <= r.effectiveTo;
+      return fromValid && toValid;
+    });
+  } else {
+    relevantRules = relevantRules.filter(r => r.effectiveTo === null);
   }
-  return rule;
+
+  const specificRule = relevantRules.find(r => r.entityType === entityType);
+  if (specificRule) return specificRule;
+
+  const fallbackRule = relevantRules.find(r => r.entityType === 'ALL');
+  return fallbackRule || null;
 };
 
 export const getDeadlineRule = (serviceId: string, entityType: EntityType): DeadlineRule | null => {
@@ -52,9 +64,9 @@ export const getLegalReferences = (serviceId: string, entityType: EntityType): L
 };
 
 export const calculateRJSCFee = (params: FeeCalculationParams): FeeCalculationResult | null => {
-  const { serviceId, entityType, documentCount = 1, authorizedCapital = 0, yearsLate = 0, certifiedCopyType } = params;
+  const { serviceId, entityType, documentCount = 1, authorizedCapital = 0, securedAmount = 0, yearsLate = 0, effectiveDate, certifiedCopyType } = params;
   
-  const rule = getFeeRule(serviceId, entityType);
+  const rule = getFeeRule(serviceId, entityType, effectiveDate);
   if (!rule) {
     return null;
   }
@@ -149,15 +161,15 @@ export const calculateRJSCFee = (params: FeeCalculationParams): FeeCalculationRe
     };
   }
 
-  if (rule.calculationType === 'COMPLEX_COMPANY_REGISTRATION' && rule.certifiedCopyRules) {
-    const cr = rule.certifiedCopyRules;
+  if (rule.calculationType === 'COMPLEX_COMPANY_REGISTRATION' && rule.registrationRules) {
+    const rr = rule.registrationRules;
     
-    const memoFee = cr.memorandumStampFee;
+    const memoFee = rr.memorandumStampFee;
     breakdown['Memorandum Stamp Fee'] = memoFee;
     totalFee += memoFee;
     
     let articlesFee = 0;
-    for (const slab of cr.articlesStampSlabs) {
+    for (const slab of rr.articlesStampSlabs) {
       if (slab.max === null) {
         if (authorizedCapital >= slab.min) {
           articlesFee = slab.fee;
@@ -171,12 +183,12 @@ export const calculateRJSCFee = (params: FeeCalculationParams): FeeCalculationRe
     breakdown['Articles Stamp Fee'] = articlesFee;
     totalFee += articlesFee;
     
-    const filingFee = cr.filingFeePerDocument * cr.filingDocumentCount;
+    const filingFee = rr.filingFeePerDocument * rr.filingDocumentCount;
     breakdown['Filing Fee'] = filingFee;
     totalFee += filingFee;
     
     let capitalFee = 0;
-    for (const slab of cr.capitalFeeSlabs) {
+    for (const slab of rr.capitalFeeSlabs) {
       if (authorizedCapital > slab.min) {
         const applicableCapital = slab.max ? Math.min(authorizedCapital, slab.max) - slab.min : authorizedCapital - slab.min;
         if (applicableCapital > 0 && slab.perUnit > 0) {
@@ -218,13 +230,13 @@ export const calculateRJSCFee = (params: FeeCalculationParams): FeeCalculationRe
 
   if (rule.calculationType === 'MORTGAGE_SLAB' && rule.mortgageRules) {
     const mr = rule.mortgageRules;
-    const securedAmount = authorizedCapital || 0; // Using authorizedCapital as the secured amount parameter
+    const securedAmt = params.securedAmount || 0; // Using securedAmount parameter instead of authorizedCapital
     
     totalFee = mr.firstSlabBase;
     breakdown['Base Fee (Up to 5L)'] = mr.firstSlabBase;
     
-    if (securedAmount > 500000) {
-      const amountAbove5L = securedAmount - 500000;
+    if (securedAmt > 500000) {
+      const amountAbove5L = securedAmt - 500000;
       const amountInSecondSlab = Math.min(amountAbove5L, 4500000); // 50L - 5L = 45L
       
       if (amountInSecondSlab > 0 && mr.secondSlabPerUnit > 0) {
@@ -234,8 +246,8 @@ export const calculateRJSCFee = (params: FeeCalculationParams): FeeCalculationRe
         totalFee += secondSlabFee;
       }
       
-      if (securedAmount > 5000000) {
-        const amountAbove50L = securedAmount - 5000000;
+      if (securedAmt > 5000000) {
+        const amountAbove50L = securedAmt - 5000000;
         if (amountAbove50L > 0 && mr.thirdSlabPerUnit > 0) {
           const units = Math.ceil(amountAbove50L / mr.unitSize);
           const thirdSlabFee = units * mr.thirdSlabPerUnit;

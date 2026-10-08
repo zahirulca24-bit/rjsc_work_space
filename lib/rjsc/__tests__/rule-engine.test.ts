@@ -177,7 +177,7 @@ test('Mortgage/Charge amount within first slab', () => {
   const result = calculateRJSCFee({
     serviceId: 'mortgage-charge-registration',
     entityType: EntityType.PRIVATE_COMPANY,
-    authorizedCapital: 300000 // up to 5L
+    securedAmount: 300000 // up to 5L
   });
   assert.ok(result);
   assert.strictEqual(result.totalFee, 300);
@@ -187,7 +187,7 @@ test('Mortgage/Charge amount middle slab', () => {
   const result = calculateRJSCFee({
     serviceId: 'mortgage-charge-registration',
     entityType: EntityType.PRIVATE_COMPANY,
-    authorizedCapital: 1000000 // 10L: Base 300 for first 5L + (5L in second slab -> 1 unit * 200 = 200) = 500
+    securedAmount: 1000000 // 10L: Base 300 for first 5L + (5L in second slab -> 1 unit * 200 = 200) = 500
   });
   assert.ok(result);
   assert.strictEqual(result.totalFee, 500);
@@ -197,7 +197,7 @@ test('Mortgage/Charge amount above 50L', () => {
   const result = calculateRJSCFee({
     serviceId: 'mortgage-charge-registration',
     entityType: EntityType.FOREIGN_COMPANY, // Testing foreign company rates
-    authorizedCapital: 6000000 // 60L
+    securedAmount: 6000000 // 60L
   });
   assert.ok(result);
   // Base 5L: 400
@@ -238,4 +238,32 @@ test('Generic non-share capital other-document filing = Tk 500', () => {
   assert.ok(result);
   assert.strictEqual(result.totalFee, 500); // 2023 Gazette fee for other documents
   assert.strictEqual(result.sourceReference, 'RJSC_FEE_GAZETTE_2023');
+});
+
+test('historical effective-date rule selection (no matching rule returns null)', () => {
+  const result = calculateRJSCFee({
+    serviceId: 'annual-return',
+    entityType: EntityType.PRIVATE_COMPANY,
+    effectiveDate: '2020-01-01'
+  });
+  assert.strictEqual(result, null);
+});
+
+test('current active rule selection', () => {
+  const result = calculateRJSCFee({
+    serviceId: 'annual-return',
+    entityType: EntityType.PRIVATE_COMPANY,
+    effectiveDate: '2023-01-01'
+  });
+  assert.ok(result);
+  assert.strictEqual(result.totalFee, 200);
+});
+
+test('entity-specific rule beats ALL fallback', () => {
+  const result = calculateRJSCFee({
+    serviceId: 'annual-return',
+    entityType: EntityType.FOREIGN_COMPANY
+  });
+  assert.ok(result);
+  assert.strictEqual(result.totalFee, 500);
 });

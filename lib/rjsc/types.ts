@@ -17,7 +17,6 @@ export interface RJSCServiceRule {
   description: string;
   requiredDocuments: string[]; // references DocumentRequirement ids
   checklist: string[];
-  feeRuleId: string | null;
   deadlineRuleId: string | null;
   nextAction: string | null;
   legalReferences: string[]; // references LegalReference ids
@@ -33,6 +32,51 @@ export interface FeeSlab {
   perUnitAmount?: number;
   unitSize?: number;
   fee?: number;
+}
+
+export interface CertifiedCopyRules {
+  memorandumStampFee: number;
+  articlesStampFee: number;
+  otherDocumentStampFee: number;
+  courtFeePerApplication: number;
+  recordInspection: {
+    society: number;
+    default: number;
+  };
+  incorporationCertificateCopy: number;
+  commencementCertificateCopy: number;
+  copyOfAnyDocument: number;
+  comparisonWithOriginal: number;
+}
+
+export interface ArticlesStampSlab {
+  min: number;
+  max: number | null;
+  fee: number;
+}
+
+export interface CapitalFeeSlab {
+  min: number;
+  max: number | null;
+  base: number;
+  perUnit: number;
+  unitSize: number;
+}
+
+export interface RegistrationRules {
+  memorandumStampFee: number;
+  filingFeePerDocument: number;
+  filingDocumentCount: number;
+  digitalCertificateFee: number;
+  articlesStampSlabs: ArticlesStampSlab[];
+  capitalFeeSlabs: CapitalFeeSlab[];
+}
+
+export interface MortgageRules {
+  firstSlabBase: number;
+  secondSlabPerUnit: number;
+  thirdSlabPerUnit: number;
+  unitSize: number;
 }
 
 export interface FeeRule {
@@ -56,13 +100,9 @@ export interface FeeRule {
   sourceReference: string;
   
   // Custom properties for specific complex rules
-  certifiedCopyRules?: any; 
-  mortgageRules?: {
-    firstSlabBase: number; // up to 5L
-    secondSlabPerUnit: number; // >5L to 50L per 5L
-    thirdSlabPerUnit: number; // >50L per 5L
-    unitSize: number; // 500000
-  };
+  certifiedCopyRules?: CertifiedCopyRules; 
+  registrationRules?: RegistrationRules;
+  mortgageRules?: MortgageRules;
 }
 
 export interface DocumentRequirement {

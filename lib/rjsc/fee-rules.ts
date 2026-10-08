@@ -140,7 +140,7 @@ export const feeRules: FeeRule[] = [
     vatApplicable: false,
     notes: 'Private Company Registration',
     sourceReference: 'RJSC_REG_FEE_SCHEDULE',
-    certifiedCopyRules: {
+    registrationRules: {
       memorandumStampFee: 2000,
       filingFeePerDocument: 200,
       filingDocumentCount: 6,
@@ -244,7 +244,7 @@ export const feeRules: FeeRule[] = [
     vatApplicable: false,
     notes: 'Public Company Registration',
     sourceReference: 'RJSC_REG_FEE_SCHEDULE',
-    certifiedCopyRules: {
+    registrationRules: {
       memorandumStampFee: 2000,
       filingFeePerDocument: 200,
       filingDocumentCount: 8, // Usually 8 documents
