@@ -19,6 +19,7 @@ class Work(Base):
     period_or_year = Column(String, nullable=True)
     assigned_to = Column(String, nullable=True)
     status = Column(String, nullable=False, index=True)
+    review_status = Column(String, nullable=False, server_default='DRAFT', default='DRAFT')
     professional_fee = Column(Numeric, nullable=False, default=0)
     government_fee = Column(Numeric, nullable=True)
     other_cost = Column(Numeric, nullable=False, default=0)

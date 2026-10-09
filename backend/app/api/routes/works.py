@@ -11,6 +11,8 @@ from app.db.session import get_db
 from app.models.work import Work, WorkRuleSnapshot
 from app.schemas.work import WorkCreate, WorkRead, WorkBase
 from pydantic import BaseModel
+from app.models.user import User, RoleEnum
+from app.api.deps import get_current_user
 
 router = APIRouter()
 
@@ -106,10 +108,12 @@ def get_work(work_id: UUID, db: Session = Depends(get_db)):
     return work
 
 @router.patch("/{work_id}", response_model=WorkRead)
-def update_work(work_id: UUID, work_update: WorkUpdate, db: Session = Depends(get_db)):
+def update_work(work_id: UUID, work_update: WorkUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     work = db.get(Work, work_id)
     if not work:
         raise HTTPException(status_code=404, detail="Work not found")
+    if current_user.role == RoleEnum.JUNIOR.value and getattr(work, "review_status", "DRAFT") not in ["DRAFT", "RETURNED_BY_SENIOR", "RETURNED_BY_MANAGER"]:
+        raise HTTPException(status_code=403, detail="Cannot edit work under review")
 
     update_data = work_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -158,10 +162,14 @@ def get_checklist(work_id: UUID, db: Session = Depends(get_db)):
     return db.execute(stmt).scalars().all()
 
 @router.patch("/{work_id}/checklist/{item_id}", response_model=ChecklistItemRead)
-def update_checklist_item(work_id: UUID, item_id: UUID, payload: ChecklistItemUpdate, db: Session = Depends(get_db)):
+def update_checklist_item(work_id: UUID, item_id: UUID, payload: ChecklistItemUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     item = db.get(WorkChecklist, item_id)
     if not item or item.work_id != work_id:
         raise HTTPException(status_code=404, detail="Checklist item not found")
+
+    work = db.get(Work, work_id)
+    if current_user.role == RoleEnum.JUNIOR.value and getattr(work, "review_status", "DRAFT") not in ["DRAFT", "RETURNED_BY_SENIOR", "RETURNED_BY_MANAGER"]:
+        raise HTTPException(status_code=403, detail="Cannot edit checklist under review")
 
     item.status = payload.status
     if payload.status == "COMPLETED":
@@ -203,3 +211,110 @@ def get_work_financial_summary(work_id: UUID, db: Session = Depends(get_db)):
         "collection_total": str(collected),
         "outstanding": str(billed - collected)
     }
+
+from app.models.user import User, RoleEnum
+from app.api.deps import get_current_user
+from app.models.workflow import WorkReview
+
+class ReviewActionReq(BaseModel):
+    action: str
+    comment: Optional[str] = None
+
+@router.get("/{work_id}/reviews")
+def get_work_reviews(work_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    reviews = db.query(WorkReview).filter(WorkReview.work_id == work_id).order_by(WorkReview.created_at).all()
+    results = []
+    for r in reviews:
+        reviewer_name = "System"
+        if r.reviewer_user_id:
+            u = db.query(User).filter(User.id == r.reviewer_user_id).first()
+            if u:
+                reviewer_name = u.name
+        results.append({
+            "id": r.id,
+            "work_id": r.work_id,
+            "reviewer_name": reviewer_name,
+            "reviewer_role": r.reviewer_role,
+            "action": r.action,
+            "comment": r.comment,
+            "created_at": r.created_at
+        })
+    return results
+
+@router.post("/{work_id}/review-actions")
+def post_review_action(
+    work_id: UUID,
+    payload: ReviewActionReq,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    work = db.get(Work, work_id)
+    if not work:
+        raise HTTPException(status_code=404, detail="Work not found")
+
+    action = payload.action
+    comment = (payload.comment or "").strip()
+
+    requires_comment = action in ["RETURN_BY_SENIOR", "RETURN_BY_MANAGER"]
+    if requires_comment and not comment:
+        raise HTTPException(status_code=422, detail="Comment is mandatory for this action")
+
+    role = current_user.role
+    current_status = work.review_status or "DRAFT"
+    new_status = None
+
+    if action == "SUBMIT_TO_SENIOR":
+        if role not in [RoleEnum.JUNIOR.value]:
+            raise HTTPException(status_code=403, detail="Role cannot perform this action")
+        if current_status not in ["DRAFT", "RETURNED_BY_SENIOR", "RETURNED_BY_MANAGER"]:
+            raise HTTPException(status_code=409, detail="Invalid transition")
+        new_status = "SUBMITTED_TO_SENIOR"
+
+    elif action == "RETURN_BY_SENIOR":
+        if role not in [RoleEnum.SENIOR.value]:
+            raise HTTPException(status_code=403, detail="Role cannot perform this action")
+        if current_status != "SUBMITTED_TO_SENIOR":
+            raise HTTPException(status_code=409, detail="Invalid transition")
+        new_status = "RETURNED_BY_SENIOR"
+
+    elif action == "APPROVE_BY_SENIOR":
+        if role not in [RoleEnum.SENIOR.value]:
+            raise HTTPException(status_code=403, detail="Role cannot perform this action")
+        if current_status != "SUBMITTED_TO_SENIOR":
+            raise HTTPException(status_code=409, detail="Invalid transition")
+        new_status = "SUBMITTED_TO_MANAGER"
+
+    elif action == "RETURN_BY_MANAGER":
+        if role not in [RoleEnum.MANAGER.value, RoleEnum.ADMIN.value]:
+            raise HTTPException(status_code=403, detail="Role cannot perform this action")
+        if current_status != "SUBMITTED_TO_MANAGER":
+            raise HTTPException(status_code=409, detail="Invalid transition")
+        new_status = "RETURNED_BY_MANAGER"
+
+    elif action == "FINAL_APPROVE":
+        if role not in [RoleEnum.MANAGER.value, RoleEnum.ADMIN.value]:
+            raise HTTPException(status_code=403, detail="Role cannot perform this action")
+        if current_status != "SUBMITTED_TO_MANAGER":
+            raise HTTPException(status_code=409, detail="Invalid transition")
+        new_status = "APPROVED"
+
+    else:
+        raise HTTPException(status_code=400, detail="Unknown action")
+
+    work.review_status = new_status
+    review_record = WorkReview(
+        work_id=work.id,
+        reviewer_user_id=current_user.id,
+        reviewer_role=current_user.role,
+        action=action,
+        comment=comment if comment else None
+    )
+    db.add(review_record)
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to record review action")
+
+    return {"status": "success", "new_status": new_status}

@@ -7,6 +7,7 @@ import { getWorks } from "@/lib/api/works";
 import { getClients } from "@/lib/api/clients";
 import { PageHeader, ContentCard, StatCard, StatusBadge, EmptyState, LoadingState, Table, Th, Td } from "@/components/SharedUI";
 import { NewWorkForm } from "@/components/NewWorkForm";
+import { ReviewModal } from "@/components/ReviewModal";
 
 export default function WorkRegisterPage() {
   const [works, setWorks] = useState<any[]>([]);
@@ -15,6 +16,7 @@ export default function WorkRegisterPage() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [reviewWork, setReviewWork] = useState<any>(null);
 
   const fetchAll = useCallback(() => {
     Promise.all([getWorks(), getClients()]).then(([w, c]) => {

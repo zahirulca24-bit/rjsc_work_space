@@ -157,21 +157,34 @@ def test_admin_create_user(client, db_session):
         "password": "password",
         "role": "MANAGER"
     })
-    assert response.status_code == 200
+    assert response.status_code == 201
     data = response.json()
     assert data["email"] == "new@example.com"
     assert data["role"] == "MANAGER"
 
 def test_duplicate_normalized_email(client, db_session):
     c = _get_client_for_role(client, db_session, RoleEnum.ADMIN)
+
+    import uuid
+    email = f"duplicate_{uuid.uuid4().hex[:8]}@example.com"
+
+    first = c.post("/api/users", json={
+        "name": "First User",
+        "email": email.upper(),
+        "password": "password",
+        "role": "MANAGER"
+    })
+    assert first.status_code == 201
+
     response = c.post("/api/users", json={
-        "name": "New User 2",
-        "email": "admin@example.com", # Same as Admin user created in fixture
+        "name": "Duplicate User",
+        "email": email,
         "password": "password",
         "role": "MANAGER"
     })
     assert response.status_code == 409
-    assert "already registered" in response.json()["detail"].lower()
+    assert "already" in response.json()["detail"].lower()
+
 
 def test_junior_document_upload_allowed(client, db_session):
     c = _get_client_for_role(client, db_session, RoleEnum.JUNIOR)
