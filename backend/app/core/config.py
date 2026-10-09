@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     DB_POOL_RECYCLE_SECONDS: int = 300
     REQUEST_ID_HEADER: str = "X-Request-ID"
 
+    AI_PROVIDER: str = "groq"
+    GROQ_API_KEY: Optional[str] = None
+    GROQ_TEXT_MODEL: str = "openai/gpt-oss-120b"
+    GROQ_VISION_MODEL: str = "qwen/qwen3.8-27b"
+    AI_MAX_TEXT_CHARS: int = 30000
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

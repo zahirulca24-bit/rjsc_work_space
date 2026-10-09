@@ -3,7 +3,9 @@ import { useState, useEffect } from "react";
 import { PageTitle, Card, Badge, PrimaryButton, SecondaryButton } from "@/components/UI";
 import { listDocuments, uploadDocument, getDocumentDownloadUrl } from "@/lib/api/documents";
 import { PageHeader, ContentCard, StatCard, StatusBadge, EmptyState, LoadingState, Table, Th, Td } from "@/components/SharedUI";
-import { FolderOpen, FileText, ReceiptText, CircleDollarSign, AlertTriangle, CheckCircle2, BriefcaseBusiness, Users } from "lucide-react";
+import { FolderOpen, FileText, AlertTriangle, CheckCircle2, BrainCircuit } from "lucide-react";
+import DocumentAIModal from "@/components/DocumentAIModal";
+import { useAuth } from "@/lib/auth/AuthProvider";
 
 export default function DocumentsPage() {
   const [docs, setDocs] = useState<any[]>([]);
@@ -14,6 +16,12 @@ export default function DocumentsPage() {
   const [category, setCategory] = useState("OTHER");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [aiDocument, setAiDocument] = useState<any | null>(null);
+  const { user } = useAuth();
+
+  const canApproveAI = ["ADMIN", "MANAGER", "SENIOR"].includes(
+    user?.role || ""
+  );
 
   const categories = [
     "INCORPORATION", "MOA", "AOA", "FORM_XII", "FORM_VI",
@@ -120,9 +128,24 @@ export default function DocumentsPage() {
                   <Td className="text-sm">{d.uploaded_by}</Td>
                   <Td className="font-mono text-sm">{Math.round(d.size_bytes / 1024)} KB</Td>
                   <Td>
-                    <a href={getDocumentDownloadUrl(d.id)} target="_blank" rel="noreferrer" className="text-[#447a5d] font-bold hover:underline">
-                      Download
-                    </a>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <a
+                        href={getDocumentDownloadUrl(d.id)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[#447a5d] font-bold hover:underline"
+                      >
+                        Download
+                      </a>
+
+                      <button
+                        onClick={() => setAiDocument(d)}
+                        className="inline-flex items-center gap-1 text-[#367b86] font-bold hover:underline"
+                      >
+                        <BrainCircuit className="h-4 w-4" />
+                        AI Review
+                      </button>
+                    </div>
                   </Td>
                 </tr>
               ))}
@@ -130,6 +153,19 @@ export default function DocumentsPage() {
           </Table>
         )}
       </ContentCard>
+
+      <DocumentAIModal
+        documentId={aiDocument?.id || null}
+        documentName={
+          aiDocument?.original_filename ||
+          aiDocument?.document_name
+        }
+        canApprove={canApproveAI}
+        onClose={() => setAiDocument(null)}
+        onApproved={() => {
+          fetchDocs();
+        }}
+      />
     </div>
   );
 

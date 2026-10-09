@@ -16,7 +16,7 @@ from app.models.user import User, RoleEnum
 class FakeUser:
     def __init__(self):
         import uuid
-        self.id = uuid.UUID("00000000-0000-0000-0000-000000000000")
+        self.id = uuid.UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
         self.role = RoleEnum.ADMIN
         self.is_active = True
         self.email = "admin@example.com"

@@ -13,3 +13,7 @@ google-auth-httplib2
 bcrypt
 PyJWT
 email-validator
+pypdf
+python-docx
+openpyxl
+xlrd
