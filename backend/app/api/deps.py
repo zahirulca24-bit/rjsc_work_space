@@ -41,7 +41,12 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user")
-        
+
+    # Used by the central audit listener. The value lives only for this
+    # request/session and is never accepted from the frontend.
+    db.info["audit_user_id"] = str(user.id)
+    db.info["audit_user_role"] = user.role.value
+
     return user
 
 def require_roles(*allowed_roles):

@@ -56,13 +56,19 @@ def login(request: LoginRequest, response: Response, db: Session = Depends(get_d
         samesite="lax",
         secure=settings.APP_ENV == "production",
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
     )
 
     return {"message": "Successfully logged in"}
 
 @router.post("/logout")
 def logout(response: Response):
-    response.delete_cookie(key="access_token")
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        samesite="lax",
+        secure=settings.APP_ENV == "production",
+    )
     return {"message": "Successfully logged out"}
 
 @router.get("/me", response_model=UserResponse)

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from app.api.deps import get_current_user
-from app.api.routes import status, health, clients, works, documents, storage, invoices, transactions, analytics, auth, users, tasks
+from app.api.routes import status, health, clients, works, documents, storage, invoices, transactions, analytics, auth, users, tasks, audit
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -13,6 +13,7 @@ api_router.include_router(clients.router, prefix="/clients", tags=["clients"], d
 api_router.include_router(clients.HISTORY_ROUTER, prefix="/clients", tags=["clients-history"], dependencies=protected)
 api_router.include_router(works.router, prefix="/works", tags=["works"], dependencies=protected)
 api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"], dependencies=protected)
+api_router.include_router(audit.router, prefix="/audit-logs", tags=["audit"], dependencies=protected)
 api_router.include_router(documents.router, prefix="/documents", tags=["documents"], dependencies=protected)
 api_router.include_router(storage.router, prefix="/storage", tags=["storage"], dependencies=protected)
 api_router.include_router(invoices.router, prefix="/invoices", tags=["invoices"], dependencies=protected)

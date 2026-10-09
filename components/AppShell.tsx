@@ -67,6 +67,7 @@ const RAW_GROUPS = [
     items: [
       { label: "Team", href: "/team", icon: Users },
       { label: "Reports", href: "/reports", icon: BarChart3 },
+      { label: "Audit Trail", href: "/audit-log", icon: ShieldCheck },
       { label: "Settings", href: "/settings", icon: Settings },
       { label: "Users", href: "/users", icon: Users },
     ],
@@ -90,10 +91,10 @@ export default function AppShell({
     return RAW_GROUPS.map(section => {
       const filteredItems = section.items.filter((item: any) => {
         if (user.role === "JUNIOR") {
-           if (item.href === "/settings" || item.href === "/transactions" || item.href === "/billing" || item.href === "/users") return false;
+           if (item.href === "/settings" || item.href === "/transactions" || item.href === "/billing" || item.href === "/users" || item.href === "/audit-log") return false;
         }
         if (user.role === "SENIOR") {
-           if (item.href === "/settings" || item.href === "/users") return false;
+           if (item.href === "/settings" || item.href === "/users" || item.href === "/audit-log") return false;
         }
         if (user.role === "MANAGER") {
            if (item.href === "/users") return false;
