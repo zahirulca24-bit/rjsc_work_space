@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthProvider";
@@ -43,6 +43,7 @@ const RAW_GROUPS = [
     items: [
       { label: "Clients", href: "/clients", icon: Building2 },
       { label: "Work Register", href: "/work-register", icon: ClipboardList },
+      { label: "Tasks & Deadlines", href: "/tasks", icon: Clock3 },
       {
         label: "Checklist / Requisition",
         href: "/checklist-requisition",
