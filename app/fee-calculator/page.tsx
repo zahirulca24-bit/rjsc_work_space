@@ -5,6 +5,8 @@ import { PageTitle, Card, Badge } from "@/components/UI";
 import { services } from "@/lib/rjsc/services";
 import { calculateRJSCFee, getFeeRule } from "@/lib/rjsc/rule-engine";
 import { EntityType } from "@/lib/rjsc/types";
+import { PageHeader, ContentCard, StatCard, StatusBadge, EmptyState, LoadingState, Table, Th, Td } from "@/components/SharedUI";
+import { FolderOpen, FileText, ReceiptText, CircleDollarSign, AlertTriangle, CheckCircle2, BriefcaseBusiness, Users, Calculator, ClipboardList } from "lucide-react";
 
 export default function Page() {
   const [serviceId, setServiceId] = useState(services[4].id); // Annual Return
@@ -14,9 +16,15 @@ export default function Page() {
   const [authCapital, setAuthCapital] = useState(0);
   const [certifiedType, setCertifiedType] = useState<'memorandum' | 'articles' | 'other' | 'incorporation' | 'commencement' | 'any' | 'comparison' | 'inspection'>('any');
 
-  const selectedService = services.find(s => s.id === serviceId);
+
+  const [securedAmount, setSecuredAmount] = useState(0);
+  const [yearsLate, setYearsLate] = useState(0);
+  const feeResult = useMemo(() => {
+    return calculateRJSCFee({ serviceId, entityType, securedAmount, yearsLate });
+  }, [serviceId, entityType, securedAmount, yearsLate]);
+const selectedService = services.find(s => s.id === serviceId);
   const availableEntities = selectedService?.entityTypes || [];
-  
+
   // Ensure selected entity is valid for the service
   const currentEntity = availableEntities.includes(entityType) ? entityType : (availableEntities[0] || EntityType.PRIVATE_COMPANY);
 
@@ -38,101 +46,66 @@ export default function Page() {
   }, [serviceId, currentEntity, count, authCapital, late, certifiedType]);
 
   return (
-    <>
-      <PageTitle title="Fee Calculator" desc="Frontend estimate using RJSC Rule Master." />
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card>
-          <div className="grid gap-4">
-            <label className="text-sm font-semibold">Service
-              <select value={serviceId} onChange={e => setServiceId(e.target.value)} className="mt-2 w-full rounded-xl border p-3 font-normal">
-                {services.map(x => <option key={x.id} value={x.id}>{x.serviceName}</option>)}
-              </select>
-            </label>
-            <label className="text-sm font-semibold">Entity Type
-              <select value={currentEntity} onChange={e => setEntityType(e.target.value as EntityType)} className="mt-2 w-full rounded-xl border p-3 font-normal">
-                {availableEntities.map(e => <option key={e} value={e}>{e.replace('_', ' ')}</option>)}
-              </select>
-            </label>
+    <div className="mx-auto max-w-7xl space-y-6 pb-12">
+      <PageHeader
+        icon={Calculator}
+        title="Fee Calculator"
+        subtitle="Estimate RJSC fees before client approval."
+      />
 
-            {isPerDoc && (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="text-sm font-semibold">Document / Form Count
-                  <input type="number" min={1} value={count} onChange={e => setCount(Number(e.target.value))} className="mt-2 w-full rounded-xl border p-3 font-normal" />
-                </label>
-                {hasLate && (
-                  <label className="text-sm font-semibold">Years Late
-                    <input type="number" min={0} value={late} onChange={e => setLate(Number(e.target.value))} className="mt-2 w-full rounded-xl border p-3 font-normal" />
-                  </label>
-                )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <ContentCard className="p-6">
+          <h2 className="text-lg font-black text-[#181818] mb-4">Calculation Inputs</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-[#44765b] uppercase tracking-wider mb-2">Entity Type</label>
+              <select value={entityType} onChange={e=>setEntityType(e.target.value as EntityType)} className="w-full px-4 py-2 text-sm border border-[#d9e3df] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#79b993] bg-white">
+                {Object.values(EntityType).map(v => <option key={v} value={v}>{v.replace('_',' ')}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-[#44765b] uppercase tracking-wider mb-2">Service</label>
+              <select value={serviceId} onChange={e=>setServiceId(e.target.value)} className="w-full px-4 py-2 text-sm border border-[#d9e3df] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#79b993] bg-white">
+                {services.map(s => <option key={s.id} value={s.id}>{s.id}</option>)}
+              </select>
+            </div>
+            {selectedService?.category === 'MORTGAGE' && (
+              <div>
+                <label className="block text-sm font-bold text-[#44765b] uppercase tracking-wider mb-2">Secured Amount</label>
+                <input type="number" value={securedAmount} onChange={e=>setSecuredAmount(Number(e.target.value))} className="w-full px-4 py-2 text-sm border border-[#d9e3df] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#79b993] bg-white" />
               </div>
             )}
-
-            {isComplexReg && (
-              <label className="text-sm font-semibold">Authorized Capital (Tk)
-                <input type="number" min={0} step={100000} value={authCapital} onChange={e => setAuthCapital(Number(e.target.value))} className="mt-2 w-full rounded-xl border p-3 font-normal" />
-              </label>
-            )}
-
-            {isCertified && (
-              <label className="text-sm font-semibold">Copy Type
-                <select value={certifiedType} onChange={e => setCertifiedType(e.target.value as any)} className="mt-2 w-full rounded-xl border p-3 font-normal">
-                  <option value="incorporation">Incorporation Certificate</option>
-                  <option value="memorandum">Memorandum</option>
-                  <option value="articles">Articles</option>
-                  <option value="any">Copy of Any Document</option>
-                  <option value="inspection">Record Inspection</option>
-                </select>
-              </label>
+            {selectedService?.id === 'RETURN_FILING' && (
+              <div>
+                <label className="block text-sm font-bold text-[#44765b] uppercase tracking-wider mb-2">Years Late</label>
+                <input type="number" value={yearsLate} onChange={e=>setYearsLate(Number(e.target.value))} className="w-full px-4 py-2 text-sm border border-[#d9e3df] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#79b993] bg-white" />
+              </div>
             )}
           </div>
-        </Card>
+        </ContentCard>
 
-        <Card>
-          <div className="text-xs uppercase text-slate-500">Estimated RJSC Fee</div>
-          
-          {result ? (
-            <>
-              <div className="mt-3 text-4xl font-bold">৳ {result.totalFee.toLocaleString()}</div>
-              
-              {Object.keys(result.breakdown).length > 0 && (
-                <div className="mt-5 rounded-lg border bg-slate-50 p-4">
-                  <div className="text-xs font-semibold uppercase text-slate-500 mb-3">Calculation Breakdown</div>
-                  <div className="space-y-2 text-sm">
-                    {Object.entries(result.breakdown).map(([label, amount]) => (
-                      <div key={label} className="flex justify-between border-b border-slate-200 pb-1 last:border-0 last:pb-0">
-                        <span className="text-slate-600">{label}</span>
-                        <span className="font-medium">৳ {amount.toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
+        <ContentCard className="p-6">
+          <h2 className="text-lg font-black text-[#181818] mb-4">Calculation Results</h2>
+          {feeResult ? (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center bg-[#e7f5ec] border border-[#b8dfc6] p-4 rounded-xl">
+                <div className="text-sm">
+                  <div className="font-black text-[#234a32]">Total Govt Fee</div>
+                  <div className="text-[#44765b] text-xs font-bold mt-0.5">Based on Rule {feeResult.ruleId}</div>
                 </div>
-              )}
-
-              <div className="mt-6 flex flex-col gap-2 border-t pt-4 text-xs text-slate-500">
-                <div className="flex justify-between">
-                  <span>Source Reference:</span>
-                  <span className="font-medium text-slate-700">{result.sourceReference}</span>
-                </div>
-                {feeRule?.effectiveFrom && (
-                  <div className="flex justify-between">
-                    <span>Effective From:</span>
-                    <span className="font-medium text-slate-700">{feeRule.effectiveFrom}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span>Status:</span>
-                  <Badge>Active</Badge>
+                <div className="font-black text-[#181818] font-mono text-xl">
+                  ৳³ {feeResult.totalFee.toLocaleString()}
                 </div>
               </div>
-            </>
-          ) : (
-            <div className="mt-6 rounded-xl bg-amber-50 p-5 text-amber-800 border border-amber-200">
-              <div className="font-bold mb-1">Fee rule unavailable / Needs Source Review</div>
-              <p className="text-sm">The calculation rule for this specific service and entity combination has not been structurally verified and loaded into the Rule Master.</p>
+              <div className="space-y-2 mt-4 text-sm font-bold text-[#4b4d47]">
+                 <p>Source: {feeResult.sourceReference}</p>
+              </div>
             </div>
+          ) : (
+            <EmptyState title="Manual Review Needed" message="No automated rule exists for this combination. Fallback to manual source review." icon={AlertTriangle} />
           )}
-        </Card>
+        </ContentCard>
       </div>
-    </>
+    </div>
   );
 }

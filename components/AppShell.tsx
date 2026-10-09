@@ -41,7 +41,6 @@ const groups = [
     items: [
       { label: "Clients", href: "/clients", icon: Building2 },
       { label: "Work Register", href: "/work-register", icon: ClipboardList },
-      { label: "New Work", href: "/new-work", icon: PlusCircle },
       {
         label: "Checklist / Requisition",
         href: "/checklist-requisition",

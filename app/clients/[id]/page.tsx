@@ -8,6 +8,8 @@ import { buildTimeline } from "@/lib/clients/history-utils";
 import { Badge, Stat, PrimaryButton } from "@/components/UI";
 import { getClient, getClientCurrentPosition, getClientHistory } from "@/lib/api/clients";
 import { getWorks } from "@/lib/api/works";
+import { PageHeader, ContentCard, StatCard, StatusBadge, Table, Th, Td, EmptyState } from "@/components/SharedUI";
+import { Building2, FolderOpen, AlertTriangle, FileText, BriefcaseBusiness } from "lucide-react";
 import { HistoryRecordModal } from "./HistoryRecordModal";
 import { EntityType } from "@/lib/rjsc/types";
 
@@ -100,37 +102,38 @@ export default function ClientProfilePage() {
   const timeline = buildTimeline(events);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">{currentPosition.current_legal_name || client.legal_name}</h1>
-          <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
-            <Badge tone="info">{client.client_code}</Badge>
-            <Badge tone="neutral">{client.entity_type.replace('_', ' ')}</Badge>
-            <Badge tone={currentPosition.current_entity_status === 'Active' ? 'success' : 'warning'}>
-              {currentPosition.current_entity_status || client.status}
-            </Badge>
-            {client.registration_no && (
-              <span className="text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded text-xs">
-                {client.registration_no}
-              </span>
-            )}
+    <div className="mx-auto max-w-7xl space-y-6 pb-12">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div className="flex items-center gap-4">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#79b993] text-white shadow-sm">
+            <Building2 size={24} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-[#181818] tracking-tight">{currentPosition.current_legal_name || client.legal_name}</h1>
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className="font-bold text-[#44765b] bg-[#dff1e7] px-2 py-0.5 rounded-md text-[11px] uppercase tracking-wider">{client.client_code}</span>
+              <span className="font-bold text-[#6c7671] bg-[#eef2f0] border border-[#d9e3df] px-2 py-0.5 rounded-md text-[11px] uppercase tracking-wider">{client.entity_type.replace('_', ' ')}</span>
+              <StatusBadge status={currentPosition.current_entity_status || client.status} />
+              {client.registration_no && (
+                <span className="font-mono font-medium text-[#4b4d47] bg-[#fffdf7] border border-[#ece5d9] px-2 py-0.5 rounded text-xs">
+                  {client.registration_no}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Link href="/new-work" className="inline-block bg-slate-900 text-white px-4 py-2 rounded-lg font-medium text-sm hover:bg-slate-800 transition-colors">
-            Start New Work
-          </Link>
-        </div>
+        <Link href="/new-work" className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#447a5d] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#396a50]">
+          Start New Work
+        </Link>
       </div>
 
-      <div className="flex gap-6 border-b border-slate-200">
-        {["Overview", "Corporate History", "Timeline", "Active Works", "Documents", "Financials"].map((t) => (
+      <div className="flex gap-2 border-b border-[#d9e3df] overflow-x-auto pb-1 mb-4">
+        {["Overview", "Corporate History", "Active Works", "Documents", "Financials"].map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`pb-3 font-medium text-sm border-b-2 transition-colors ${
-              tab === t ? "border-emerald-600 text-emerald-800" : "border-transparent text-slate-500 hover:text-slate-800"
+            className={`px-4 py-2 font-bold text-sm whitespace-nowrap rounded-t-xl transition-colors ${
+              tab === t ? "bg-[#fffaf0] text-[#181818] border-t border-x border-[#d9e3df] border-b-2 border-b-[#fffaf0] -mb-[1px]" : "text-[#6c7671] hover:text-[#181818]"
             }`}
           >
             {t}
@@ -139,147 +142,65 @@ export default function ClientProfilePage() {
       </div>
 
       {tab === "Overview" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Stat label="Total Billed (YTD)" value={`৳ ${clientWorks.reduce((sum: number, w: any) => sum + (w.total_bill ? parseFloat(w.total_bill) : 0), 0)}`} />
-            <Stat label="Active Works" value={clientWorks.filter((w:any) => w.status !== 'Completed').length} />
-            <Stat label="Pending Compliance" value={currentPosition.pending_compliance_count} />
+        <ContentCard className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="font-black text-[#181818] text-lg">Current Position</h3>
+            <span className="text-xs font-bold text-[#44765b] uppercase tracking-wider">Computed from history</span>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-              <h3 className="font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">Business Profile</h3>
-              <dl className="space-y-3 text-sm">
-                <div className="flex">
-                  <dt className="w-1/3 text-slate-500">Contact</dt>
-                  <dd className="w-2/3 font-medium text-slate-900">{client.contact_person || "-"}</dd>
-                </div>
-                <div className="flex">
-                  <dt className="w-1/3 text-slate-500">Mobile</dt>
-                  <dd className="w-2/3 font-medium text-slate-900">{client.mobile || "-"}</dd>
-                </div>
-                <div className="flex">
-                  <dt className="w-1/3 text-slate-500">Email</dt>
-                  <dd className="w-2/3 font-medium text-slate-900">{client.email || "-"}</dd>
-                </div>
-                <div className="flex">
-                  <dt className="w-1/3 text-slate-500">TIN</dt>
-                  <dd className="w-2/3 font-medium text-slate-900">{client.tin || "-"}</dd>
-                </div>
-                <div className="flex">
-                  <dt className="w-1/3 text-slate-500">BIN</dt>
-                  <dd className="w-2/3 font-medium text-slate-900">{client.bin || "-"}</dd>
-                </div>
-                <div className="flex">
-                  <dt className="w-1/3 text-slate-500">Assigned</dt>
-                  <dd className="w-2/3 font-medium text-slate-900">{client.assigned_staff || "-"}</dd>
-                </div>
-              </dl>
+            <div>
+              <div className="text-xs font-bold text-[#6c7671] uppercase tracking-wider mb-1">Registered Office</div>
+              <div className="font-medium text-[#181818]">{currentPosition.current_registered_office || '-'}</div>
             </div>
-
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
-              <div>
-                <h3 className="font-bold text-slate-900 mb-3 border-b border-slate-100 pb-2">Registered Office</h3>
-                <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-3 rounded">
-                  {currentPosition.current_registered_office || "Not on file"}
-                </p>
+            <div>
+              <div className="text-xs font-bold text-[#6c7671] uppercase tracking-wider mb-1">Capital Info</div>
+              <div className="text-sm font-medium text-[#181818]">
+                Auth: ৳³ {currentPosition.authorized_capital?.toLocaleString() || '0'} <br/>
+                Paid: ৳³ {currentPosition.paid_up_capital?.toLocaleString() || '0'}
               </div>
-
-              {client.entity_type.includes('COMPANY') && (
-                <div>
-                  <h3 className="font-bold text-slate-900 mb-3 border-b border-slate-100 pb-2">Capital Structure</h3>
-                  <div className="flex gap-8 text-sm">
-                    <div>
-                      <div className="text-slate-500 mb-1">Authorized</div>
-                      <div className="font-medium text-slate-900">৳ {(currentPosition.authorized_capital || 0).toLocaleString()}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-500 mb-1">Paid Up</div>
-                      <div className="font-medium text-slate-900">৳ {(currentPosition.paid_up_capital || 0).toLocaleString()}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-              <h3 className="font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">Current Board</h3>
-              {currentPosition.current_directors?.length > 0 ? (
-                <ul className="space-y-3">
-                  {currentPosition.current_directors.map((d: any) => (
-                    <li key={d.id} className="flex justify-between items-center text-sm">
-                      <span className="font-medium text-slate-900">{d.full_name}</span>
-                      <span className="text-slate-500 text-xs px-2 py-0.5 bg-slate-100 rounded">{d.designation}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-slate-500 italic">No current directors recorded.</p>
-              )}
-            </div>
-
-            {client.entity_type.includes('COMPANY') && (
-              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">Shareholding</h3>
-                {currentPosition.current_shareholders?.length > 0 ? (
-                  <ul className="space-y-3">
-                    {currentPosition.current_shareholders.map((s: any) => (
-                      <li key={s.id} className="flex justify-between items-center text-sm">
-                        <span className="font-medium text-slate-900">{s.shareholder_name}</span>
-                        <span className="text-slate-600 font-medium">{s.share_count.toLocaleString()} shares</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-slate-500 italic">No shareholders recorded.</p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        </ContentCard>
       )}
 
       {tab === "Corporate History" && (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
-          <div className="flex justify-between items-center">
-             <h3 className="font-bold text-slate-900 text-lg">Historical Records</h3>
-             <PrimaryButton onClick={() => { setEditEvent(null); setIsModalOpen(true); }}>
-                Add Record
-             </PrimaryButton>
+        <div className="flex gap-6">
+          <div className="w-64 shrink-0 bg-[#fffdf7] border border-[#d9e3df] rounded-xl p-4 self-start sticky top-6">
+            <button onClick={() => { setEditEvent(null); setIsModalOpen(true); }} className="w-full mb-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#447a5d] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#396a50]">
+              + Record Event
+            </button>
+            <div className="space-y-1">
+              <h4 className="text-xs font-bold text-[#44765b] uppercase tracking-wider mb-2">Filters</h4>
+              {["All", "Registration", "Address", "Directors", "Capital", "AGM"].map(f => (
+                <div key={f} className="text-sm font-medium text-[#4b4d47] px-2 py-1.5 hover:bg-[#e7f5ec] hover:text-[#234a32] rounded-md cursor-pointer">{f}</div>
+              ))}
+            </div>
           </div>
-          <div className="text-sm text-slate-500 italic">History records managed via API.</div>
-
-          <HistoryRecordModal
-            isOpen={isModalOpen}
-            onClose={() => setIsModalOpen(false)}
-            clientId={id}
-            onSave={() => {
-              setIsModalOpen(false);
-              fetchAllData();
-            }}
-          />
-        </div>
-      )}
-
-      {tab === "Timeline" && (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="font-bold text-slate-900 mb-6 text-lg">Event Timeline</h3>
-          <div className="space-y-6">
+          <div className="flex-1 space-y-6">
             {timeline.length === 0 ? (
-              <p className="text-sm text-slate-500 italic">No events recorded.</p>
+               <EmptyState title="No events recorded" message="Add the first corporate history event." icon={FolderOpen} />
             ) : (
-              timeline.map((ev: any, idx: number) => (
-                <div key={ev.id || idx} className="relative pl-8 mb-6">
-                  <div className="absolute left-0 top-0 bottom-0 w-px bg-slate-200"></div>
-                  <div className="absolute left-[-4px] top-1 w-2 h-2 rounded-full bg-emerald-500 ring-4 ring-white"></div>
-                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-semibold text-slate-700 bg-slate-200/50 px-2 py-0.5 rounded text-xs">{(ev.type || '').replace(/_/g, ' ')}</span>
-                          <span className="text-xs text-slate-500">{ev.date}</span>
+              timeline.map((yearGroup: any) => (
+                <div key={yearGroup.year} className="mb-8">
+                  <div className="flex items-center gap-4 mb-4">
+                    <h3 className="text-xl font-black text-[#181818]">{yearGroup.year}</h3>
+                    <div className="h-px bg-[#d9e3df] flex-1"></div>
+                  </div>
+                  <div className="space-y-4">
+                    {yearGroup.events.map((ev: any) => (
+                      <div key={ev.id} className="relative pl-6">
+                        <div className="absolute left-0 top-0 bottom-0 w-px bg-[#d9e3df]"></div>
+                        <div className="absolute left-[-4px] top-1.5 w-2.5 h-2.5 rounded-full bg-[#79b993] ring-4 ring-[#eef2f0]"></div>
+                        <div className="bg-[#fffdf7] p-4 rounded-xl border border-[#ece5d9] shadow-sm hover:border-[#d9e3df] transition-colors group">
+                              <div className="flex justify-between items-start mb-2">
+                                <span className="font-bold text-[#44765b] bg-[#e7f5ec] px-2 py-0.5 rounded-md text-[10px] uppercase tracking-widest">{(ev.type || '').replace(/_/g, ' ')}</span>
+                                <span className="text-xs font-bold text-[#6c7671]">{ev.date}</span>
+                              </div>
+                              <p className="text-sm font-medium text-[#181818] mt-2">{ev.title || ev.notes || 'Recorded in system'}</p>
+                              <button className="mt-3 text-xs font-bold text-[#447a5d] opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setEditEvent(ev); setIsModalOpen(true); }}>Edit Record</button>
                         </div>
-                        <p className="text-slate-600 mt-2">{ev.title || ev.notes || 'Recorded in system'}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))
@@ -289,34 +210,42 @@ export default function ClientProfilePage() {
       )}
 
       {tab === "Active Works" && (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="font-bold text-slate-900 mb-4 text-lg">Work Register</h3>
+        <ContentCard className="p-6">
+          <h3 className="font-black text-[#181818] mb-4 text-lg">Work Register</h3>
           {clientWorks.length === 0 ? (
-             <p className="text-sm text-slate-500 italic">No works found.</p>
+             <EmptyState title="No works found" message="Start a new work to track services." icon={BriefcaseBusiness} />
           ) : (
-             <ul className="space-y-3">
-               {clientWorks.map(w => (
-                 <li key={w.id} className="flex justify-between items-center text-sm p-3 bg-slate-50 rounded border border-slate-100">
-                   <div>
-                     <div className="font-medium text-slate-900">{w.service_id}</div>
-                     <div className="text-xs text-slate-500 mt-1">{w.work_code}</div>
-                   </div>
-                   <Badge tone={w.status === 'Completed' ? 'success' : 'warning'}>{w.status}</Badge>
-                 </li>
-               ))}
-             </ul>
+             <Table>
+               <thead><tr><Th>Service</Th><Th>Status</Th></tr></thead>
+               <tbody>
+                 {clientWorks.map(w => (
+                   <tr key={w.id}>
+                     <Td>
+                       <div className="font-bold text-[#181818]">{w.service_id}</div>
+                       <div className="text-[11px] font-bold text-[#6c7671] uppercase tracking-wider mt-1">{w.work_code}</div>
+                     </Td>
+                     <Td><StatusBadge status={w.status} /></Td>
+                   </tr>
+                 ))}
+               </tbody>
+             </Table>
           )}
-        </div>
+        </ContentCard>
       )}
+
       {tab === "Documents" && (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <ContentCard className="p-6">
           <ClientDocuments client_id={params.id as string} />
-        </div>
+        </ContentCard>
       )}
       {tab === "Financials" && (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <ContentCard className="p-6">
           <ClientFinancials client_id={params.id as string} />
-        </div>
+        </ContentCard>
+      )}
+
+      {isModalOpen && (
+        <HistoryRecordModal isOpen={isModalOpen} clientId={id} editEvent={editEvent} onClose={() => setIsModalOpen(false)} onSave={() => { setIsModalOpen(false); fetchAllData(); }} />
       )}
     </div>
   );
@@ -338,25 +267,25 @@ function ClientFinancials({ client_id }: { client_id: string }) {
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-      <div className="border p-4 rounded-md bg-slate-50">
-        <div className="text-sm text-slate-500">Total Billed</div>
-        <div className="text-xl font-bold">৳ {parseFloat(data.total_billed || "0").toLocaleString()}</div>
+      <div className="border border-[#b8dfc6] p-4 rounded-xl bg-[#e7f5ec]">
+        <div className="text-sm font-bold text-[#44765b] uppercase tracking-wider mb-2">Total Billed</div>
+        <div className="text-2xl font-black text-[#181818] font-mono">৳³ {parseFloat(data.total_billed || "0").toLocaleString()}</div>
       </div>
-      <div className="border p-4 rounded-md bg-slate-50">
-        <div className="text-sm text-slate-500">Total Collected</div>
-        <div className="text-xl font-bold">৳ {parseFloat(data.total_collected || "0").toLocaleString()}</div>
+      <div className="border border-[#d9e3df] p-4 rounded-xl bg-[#fffaf0]">
+        <div className="text-sm font-bold text-[#44765b] uppercase tracking-wider mb-2">Total Collected</div>
+        <div className="text-2xl font-black text-[#447a5d] font-mono">৳³ {parseFloat(data.total_collected || "0").toLocaleString()}</div>
       </div>
-      <div className="border p-4 rounded-md bg-slate-50">
-        <div className="text-sm text-slate-500">Outstanding</div>
-        <div className="text-xl font-bold text-red-600">৳ {parseFloat(data.outstanding || "0").toLocaleString()}</div>
+      <div className="border border-[#f0d7d0] p-4 rounded-xl bg-[#fce9e4]">
+        <div className="text-sm font-bold text-[#a03c2a] uppercase tracking-wider mb-2">Outstanding</div>
+        <div className="text-2xl font-black text-[#a03c2a] font-mono">৳³ {parseFloat(data.outstanding || "0").toLocaleString()}</div>
       </div>
-      <div className="border p-4 rounded-md bg-slate-50">
-        <div className="text-sm text-slate-500">Completed Works Value</div>
-        <div className="text-xl font-bold">৳ {parseFloat(data.completed_works_value || "0").toLocaleString()}</div>
+      <div className="border border-[#d9e3df] p-4 rounded-xl bg-[#fffdf7]">
+        <div className="text-sm font-bold text-[#6c7671] uppercase tracking-wider mb-2">Completed Works Value</div>
+        <div className="text-xl font-bold text-[#181818] font-mono">৳³ {parseFloat(data.completed_works_value || "0").toLocaleString()}</div>
       </div>
-      <div className="border p-4 rounded-md bg-slate-50">
-        <div className="text-sm text-slate-500">Open Works Value</div>
-        <div className="text-xl font-bold">৳ {parseFloat(data.open_works_value || "0").toLocaleString()}</div>
+      <div className="border border-[#d9e3df] p-4 rounded-xl bg-[#fffdf7]">
+        <div className="text-sm font-bold text-[#6c7671] uppercase tracking-wider mb-2">Open Works Value</div>
+        <div className="text-xl font-bold text-[#181818] font-mono">৳³ {parseFloat(data.open_works_value || "0").toLocaleString()}</div>
       </div>
     </div>
   );
@@ -414,33 +343,35 @@ function ClientDocuments({ client_id }: { client_id: string }) {
 
   return (
     <div className="space-y-6">
-      <form onSubmit={handleUpload} className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-        <div className="font-bold mb-3">Upload Document</div>
-        {error && <div className="text-red-600 text-sm mb-2">{error}</div>}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-          <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="text-sm border p-2 rounded" />
-          <select value={category} onChange={e => setCategory(e.target.value)} className="text-sm border p-2 rounded">
+      <form onSubmit={handleUpload} className="bg-[#fffdf7] p-4 rounded-xl border border-[#ece5d9]">
+        <div className="font-black text-[#181818] mb-4">Upload Document</div>
+        {error && <div className="text-[#a03c2a] text-sm font-bold mb-3">{error}</div>}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="text-sm border border-[#d9e3df] p-2 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#79b993]" />
+          <select value={category} onChange={e => setCategory(e.target.value)} className="text-sm border border-[#d9e3df] p-2 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#79b993]">
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <input type="text" placeholder="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} className="text-sm border p-2 rounded" />
+          <input type="text" placeholder="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} className="text-sm border border-[#d9e3df] p-2 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#79b993]" />
         </div>
-        <button type="submit" disabled={!file} className="bg-emerald-600 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50">Upload</button>
+        <button type="submit" disabled={!file} className="bg-[#447a5d] text-white px-5 py-2 rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-[#396a50] transition">Upload Document</button>
       </form>
 
       {docs.length === 0 ? (
-        <p className="text-sm text-slate-500 italic">No client documents recorded.</p>
+        <p className="text-sm font-bold text-[#6c7671] italic text-center py-6">No client documents recorded.</p>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {docs.map(doc => {
-            // Need getDocumentDownloadUrl, but since it's an async component, let's just use the direct URL
             const url = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000") + "/api/documents/" + doc.id + "/download";
             return (
-              <div key={doc.id} className="p-3 bg-slate-50 rounded border flex justify-between items-center text-sm">
-                <div className="truncate">
-                  <div className="font-medium text-slate-800 truncate" title={doc.document_name}>{doc.document_name}</div>
-                  <div className="text-slate-500 text-xs mt-1">{doc.category}</div>
+              <div key={doc.id} className="p-3 bg-white rounded-xl border border-[#d9e3df] shadow-sm flex justify-between items-center text-sm group">
+                <div className="truncate flex items-center gap-3">
+                  <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#e7f5ec] text-[#44765b] shrink-0"><FileText size={16}/></div>
+                  <div className="truncate">
+                    <div className="font-bold text-[#181818] truncate" title={doc.document_name}>{doc.document_name}</div>
+                    <div className="text-[#6c7671] text-[10px] uppercase font-bold tracking-wider mt-1">{doc.category}</div>
+                  </div>
                 </div>
-                <a href={url} target="_blank" className="ml-3 px-3 py-1 bg-slate-200 hover:bg-slate-300 rounded text-xs font-medium text-slate-800">Download</a>
+                <a href={url} target="_blank" rel="noreferrer" className="ml-3 px-3 py-1.5 bg-[#eef2f0] hover:bg-[#d9e3df] rounded-lg text-xs font-bold text-[#4b4d47] transition">Download</a>
               </div>
             );
           })}

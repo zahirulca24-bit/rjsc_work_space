@@ -31,10 +31,10 @@ export async function uploadDocument(
   const formData = new FormData();
   formData.append("file", file);
   formData.append("category", category);
-  if (client_id) formData.append("client_id", client_id);
-  if (work_id) formData.append("work_id", work_id);
-  if (document_date) formData.append("document_date", document_date);
-  if (notes) formData.append("notes", notes);
+  if (client_id && client_id !== "undefined" && client_id !== "null") formData.append("client_id", client_id);
+  if (work_id && work_id !== "undefined" && work_id !== "null") formData.append("work_id", work_id);
+  if (document_date && document_date !== "undefined" && document_date !== "null") formData.append("document_date", document_date);
+  if (notes && notes !== "undefined" && notes !== "null") formData.append("notes", notes);
 
   const res = await fetch(`${API_BASE}/api/documents/upload`, {
     method: "POST",
@@ -45,7 +45,7 @@ export async function uploadDocument(
     let detail = "Upload failed";
     try {
       const data = await res.json();
-      detail = data.detail || detail;
+      detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail) || detail;
     } catch (e) {}
     throw new Error(detail);
   }

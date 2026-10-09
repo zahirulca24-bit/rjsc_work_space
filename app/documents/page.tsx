@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { PageTitle, Card, Badge, PrimaryButton, SecondaryButton } from "@/components/UI";
 import { listDocuments, uploadDocument, getDocumentDownloadUrl } from "@/lib/api/documents";
+import { PageHeader, ContentCard, StatCard, StatusBadge, EmptyState, LoadingState, Table, Th, Td } from "@/components/SharedUI";
+import { FolderOpen, FileText, ReceiptText, CircleDollarSign, AlertTriangle, CheckCircle2, BriefcaseBusiness, Users } from "lucide-react";
 
 export default function DocumentsPage() {
   const [docs, setDocs] = useState<any[]>([]);
@@ -58,79 +60,77 @@ export default function DocumentsPage() {
   };
 
   return (
-    <>
-      <PageTitle title="Documents" desc="Manage client and work documents" />
+    <div className="mx-auto max-w-7xl space-y-6 pb-12">
+      <PageHeader
+        icon={FolderOpen}
+        title="Document Center"
+        subtitle="Secure document storage for client and working papers."
+      />
 
-      <Card className="mb-6">
-        <form onSubmit={handleUpload} className="space-y-4">
-          <div className="text-lg font-bold">Upload Document</div>
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <StatCard title="Total Documents" value={docs.length} icon={FolderOpen} color="aqua" />
+        <StatCard title="Received" value={docs.length} icon={CheckCircle2} color="sage" />
+        <StatCard title="Missing" value="0" icon={AlertTriangle} color="coral" />
+        <StatCard title="Unclassified" value={docs.filter(d => d.category==='OTHER').length} icon={FileText} color="yellow" />
+      </div>
 
-          {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">File</label>
-              <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="w-full text-sm border p-2 rounded" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Category</label>
-              <select value={category} onChange={e => setCategory(e.target.value)} className="w-full text-sm border p-2 rounded">
-                {categories.map(c => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Notes / Client ID Context</label>
-            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="w-full text-sm border p-2 rounded" placeholder="Global upload requires client_id currently unsupported in UI directly without context" />
-          </div>
-          <button type="submit" disabled={!file || uploading} className="bg-emerald-600 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50">
-            {uploading ? "Uploading..." : "Upload File"}
-          </button>
-        </form>
-      </Card>
-
-      <Card>
-        <div className="mb-4">
+      <ContentCard className="p-4 flex flex-col sm:flex-row gap-4 justify-between items-center bg-[#fffdf7] border-b border-[#ece5d9]">
+        <div className="relative flex-1 max-w-md w-full">
           <input
             type="text"
             placeholder="Search documents..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="border p-2 rounded w-full md:w-1/3 text-sm"
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full px-4 py-2 text-sm border border-[#d9e3df] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#79b993]"
           />
         </div>
+        <div className="flex gap-2 items-center">
+          <select value={category} onChange={e=>setCategory(e.target.value)} className="px-3 py-2 text-sm border border-[#d9e3df] rounded-xl bg-white">
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="text-sm" />
+          <button onClick={handleUpload} disabled={uploading || !file} className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#447a5d] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#396a50] disabled:opacity-50">
+            {uploading ? "Uploading..." : "Upload Document"}
+          </button>
+        </div>
+      </ContentCard>
 
+      <ContentCard>
+        {error && <div className="p-4 text-[#a03c2a] font-bold bg-[#fce9e4] m-4 rounded-xl">{error}</div>}
         {loading ? (
-          <div className="text-center p-8 text-slate-500">Loading documents...</div>
+          <LoadingState />
         ) : docs.length === 0 ? (
-          <div className="text-center p-8 text-slate-500">No documents found.</div>
+          <EmptyState title="No documents found" message="Upload a document or change your search." icon={FileText} />
         ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {docs.map(doc => (
-              <div key={doc.id} className="rounded-xl bg-slate-50 p-4 border border-slate-100 flex justify-between items-center">
-                <div>
-                  <div className="font-semibold text-slate-800 truncate" title={doc.document_name}>{doc.document_name}</div>
-                  <div className="mt-2 flex gap-2">
-                    <Badge>{doc.category}</Badge>
-                    <Badge tone={doc.status === 'REJECTED' ? 'danger' : 'success'}>{doc.status}</Badge>
-                  </div>
-                  <div className="text-xs text-slate-500 mt-2">
-                    {new Date(doc.created_at).toLocaleDateString()} · {(doc.file_size / 1024).toFixed(1)} KB
-                  </div>
-                </div>
-                <a
-                  href={getDocumentDownloadUrl(doc.id)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 rounded text-sm font-medium text-slate-800"
-                >
-                  Download
-                </a>
-              </div>
-            ))}
-          </div>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Filename</Th>
+                <Th>Category</Th>
+                <Th>Uploaded By</Th>
+                <Th>Size</Th>
+                <Th>Actions</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {docs.map(d => (
+                <tr key={d.id}>
+                  <Td className="font-bold text-[#181818]">{d.original_filename}</Td>
+                  <Td><StatusBadge status={d.category} /></Td>
+                  <Td className="text-sm">{d.uploaded_by}</Td>
+                  <Td className="font-mono text-sm">{Math.round(d.size_bytes / 1024)} KB</Td>
+                  <Td>
+                    <a href={getDocumentDownloadUrl(d.id)} target="_blank" rel="noreferrer" className="text-[#447a5d] font-bold hover:underline">
+                      Download
+                    </a>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
         )}
-      </Card>
-    </>
+      </ContentCard>
+    </div>
   );
+
 }

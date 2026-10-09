@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { AddClientModal } from "./add-client-modal";
 import { getClients } from "@/lib/api/clients";
+import { PageHeader, ContentCard, StatCard, EmptyState, LoadingState, Table, Th, Td } from "@/components/SharedUI";
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<any[]>([]);
@@ -51,121 +52,87 @@ export default function ClientsPage() {
   }, [clients, search]);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Building2 className="w-6 h-6 text-emerald-600" />
-            Client Master
-          </h1>
-          <p className="text-slate-500 mt-1">Manage corporate clients and basic profiles.</p>
-        </div>
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Add Client
-        </button>
+    <div className="mx-auto max-w-7xl space-y-6 pb-12">
+      <PageHeader
+        icon={Building2}
+        title="Client Master"
+        subtitle="Manage corporate clients and basic profiles."
+        actionLabel="Add Client"
+        actionOnClick={() => setIsAddModalOpen(true)}
+      />
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <StatCard title="Total Clients" value={clients.length} icon={Building2} color="aqua" />
+        <StatCard title="Private Companies" value={clients.filter(c => c.entity_type === 'PRIVATE_COMPANY').length} icon={BriefcaseBusiness} color="yellow" />
+        <StatCard title="Societies & Others" value={clients.filter(c => c.entity_type !== 'PRIVATE_COMPANY').length} icon={Users} color="sage" />
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+      <ContentCard>
+        <div className="p-4 border-b border-[#ece5d9] bg-[#fffdf7]">
+          <div className="relative max-w-md w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4b4d47]" />
             <input
               type="text"
-              placeholder="Search by name, ID, or Reg No..."
+              placeholder="Search clients by name, ID, or Reg No..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full pl-9 pr-4 py-2 text-sm border border-[#d9e3df] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#79b993] bg-white"
             />
           </div>
         </div>
 
-        {error && (
-          <div className="p-4 text-red-600 bg-red-50 border-b border-red-100">
-            {error}
-          </div>
-        )}
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
+        {error ? (
+          <div className="p-8 text-center text-[#a03c2a] font-bold bg-[#fce9e4] m-4 rounded-xl">{error}</div>
+        ) : loading ? (
+          <LoadingState />
+        ) : filtered.length === 0 ? (
+           <EmptyState title="No clients found" message="Add a new client or adjust your search filter." icon={Building2} />
+        ) : (
+          <Table>
+            <thead>
               <tr>
-                <th className="px-6 py-3">Client</th>
-                <th className="px-6 py-3">Type</th>
-                <th className="px-6 py-3">Reg. No</th>
-                <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3">Assigned To</th>
-                <th className="px-6 py-3 text-right">Actions</th>
+                <Th>Client Name</Th>
+                <Th>Client ID</Th>
+                <Th>Reg. No</Th>
+                <Th>Type</Th>
+                <Th>Actions</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">Loading clients...</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
-                    No clients found matching "{search}"
-                  </td>
+            <tbody>
+              {filtered.map((c) => (
+                <tr key={c.id}>
+                  <Td>
+                    <Link href={`/clients/${c.id}`} className="font-black text-[#181818] hover:text-[#447a5d] hover:underline">
+                      {c.legal_name}
+                    </Link>
+                  </Td>
+                  <Td>
+                    <span className="font-bold text-[#44765b] bg-[#dff1e7] px-2 py-1 rounded-md text-[11px] uppercase tracking-wider">{c.client_code || '-'}</span>
+                  </Td>
+                  <Td className="font-mono font-medium">{c.registration_no || '-'}</Td>
+                  <Td>
+                    <span className="font-bold text-[#6c7671] text-xs uppercase tracking-wider">{c.entity_type?.replace('_', ' ')}</span>
+                  </Td>
+                  <Td>
+                    <Link href={`/clients/${c.id}`} className="inline-flex items-center gap-1 text-[#447a5d] hover:text-[#294d45] font-bold text-sm">
+                      View Profile <ChevronRight className="w-4 h-4" />
+                    </Link>
+                  </Td>
                 </tr>
-              ) : (
-                filtered.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50 group">
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-slate-900">{c.legal_name}</div>
-                      <div className="text-slate-500 text-xs mt-0.5">{c.client_code}</div>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">
-                      {c.entity_type.replace('_', ' ')}
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">
-                      {c.registration_no || "-"}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
-                          c.status === "Active"
-                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
-                            : c.status === "Inactive"
-                            ? "bg-rose-50 text-rose-700 ring-1 ring-rose-600/20"
-                            : "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20"
-                        }`}
-                      >
-                        {c.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">
-                      {c.assigned_staff || "-"}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <Link
-                        href={`/clients/${c.id}`}
-                        className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700 font-medium text-sm"
-                      >
-                        Profile
-                        <ChevronRight className="w-4 h-4" />
-                      </Link>
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
             </tbody>
-          </table>
-        </div>
-      </div>
+          </Table>
+        )}
+      </ContentCard>
 
       <AddClientModal
         isOpen={isAddModalOpen}
-        onClose={() => {
-          setIsAddModalOpen(false);
-        }}
+        existingClients={clients}
+        onClose={() => setIsAddModalOpen(false)}
         onSuccess={() => {
           setIsAddModalOpen(false);
           fetchClients();
         }}
-        existingClients={clients}
       />
     </div>
   );

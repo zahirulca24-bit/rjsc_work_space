@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { getTransactions } from "../../lib/api/transactions";
+import { PageHeader, ContentCard, StatCard, StatusBadge, EmptyState, LoadingState, Table, Th, Td } from "@/components/SharedUI";
+import { FolderOpen, FileText, ReceiptText, CircleDollarSign, AlertTriangle, CheckCircle2, BriefcaseBusiness, Users } from "lucide-react";
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -17,38 +19,43 @@ export default function TransactionsPage() {
   if (loading) return <div className="p-8">Loading transactions...</div>;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
-          <p className="text-muted-foreground mt-2">View collection and payments.</p>
-        </div>
+    <div className="mx-auto max-w-7xl space-y-6 pb-12">
+      <PageHeader
+        icon={CircleDollarSign}
+        title="Transactions"
+        subtitle="Manage operational finance transactions."
+      />
+
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <StatCard title="Total Transactions" value={transactions.length} icon={CircleDollarSign} color="aqua" />
+        <StatCard title="Collections" value={transactions.filter(t => t.transaction_type === 'COLLECTION').length} icon={CheckCircle2} color="sage" />
       </div>
 
-      <div className="border rounded-md">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-muted">
-            <tr>
-              <th className="p-3">Date</th>
-              <th className="p-3">Type</th>
-              <th className="p-3">Amount</th>
-              <th className="p-3">Reference</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.length === 0 ? (
-              <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">No transactions found.</td></tr>
-            ) : transactions.map((txn) => (
-              <tr key={txn.id} className="border-t">
-                <td className="p-3">{txn.transaction_date}</td>
-                <td className="p-3 font-medium">{txn.transaction_type}</td>
-                <td className="p-3">৳ {parseFloat(txn.amount).toLocaleString()}</td>
-                <td className="p-3">{txn.reference || "-"}</td>
+      <ContentCard>
+        {loading ? <LoadingState /> : transactions.length === 0 ? <EmptyState title="No transactions found" message="No transactions recorded yet." icon={CircleDollarSign} /> : (
+          <Table>
+            <thead>
+              <tr>
+                <Th>Type</Th>
+                <Th>Date</Th>
+                <Th>Reference</Th>
+                <Th>Amount</Th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {transactions.map(t => (
+                <tr key={t.id}>
+                  <Td><StatusBadge status={t.transaction_type} /></Td>
+                  <Td>{t.transaction_date}</Td>
+                  <Td>{t.reference || '-'}</Td>
+                  <Td className="font-mono font-black text-[#447a5d]">৳³ {parseFloat(t.amount).toLocaleString()}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </ContentCard>
     </div>
   );
+
 }

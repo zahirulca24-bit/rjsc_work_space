@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { getInvoices } from "../../lib/api/invoices";
+import { PageHeader, ContentCard, StatCard, StatusBadge, EmptyState, LoadingState, Table, Th, Td } from "@/components/SharedUI";
+import { FolderOpen, FileText, ReceiptText, CircleDollarSign, AlertTriangle, CheckCircle2, BriefcaseBusiness, Users } from "lucide-react";
 
 export default function BillingPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -17,38 +19,44 @@ export default function BillingPage() {
   if (loading) return <div className="p-8">Loading invoices...</div>;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Billing & Invoices</h1>
-          <p className="text-muted-foreground mt-2">Manage service revenue and invoices.</p>
-        </div>
+    <div className="mx-auto max-w-7xl space-y-6 pb-12">
+      <PageHeader
+        icon={ReceiptText}
+        title="Billing & Invoices"
+        subtitle="Manage service revenue and invoices."
+      />
+
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <StatCard title="Total Invoices" value={invoices.length} icon={ReceiptText} color="aqua" />
+        <StatCard title="Paid Invoices" value={invoices.filter(i => i.status === 'PAID').length} icon={CheckCircle2} color="sage" />
+        <StatCard title="Pending" value={invoices.filter(i => i.status !== 'PAID').length} icon={AlertTriangle} color="yellow" />
       </div>
 
-      <div className="border rounded-md">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-muted">
-            <tr>
-              <th className="p-3">Invoice No.</th>
-              <th className="p-3">Date</th>
-              <th className="p-3">Total Amount</th>
-              <th className="p-3">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoices.length === 0 ? (
-              <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">No invoices found.</td></tr>
-            ) : invoices.map((inv) => (
-              <tr key={inv.id} className="border-t">
-                <td className="p-3 font-medium">{inv.invoice_no}</td>
-                <td className="p-3">{inv.invoice_date}</td>
-                <td className="p-3">৳ {parseFloat(inv.total_amount).toLocaleString()}</td>
-                <td className="p-3">{inv.status}</td>
+      <ContentCard>
+        {loading ? <LoadingState /> : invoices.length === 0 ? <EmptyState title="No invoices found" message="No invoices generated yet." icon={ReceiptText} /> : (
+          <Table>
+            <thead>
+              <tr>
+                <Th>Invoice Code</Th>
+                <Th>Date</Th>
+                <Th>Status</Th>
+                <Th>Total Amount</Th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {invoices.map(i => (
+                <tr key={i.id}>
+                  <Td className="font-black text-[#181818]">{i.invoice_code}</Td>
+                  <Td>{i.invoice_date}</Td>
+                  <Td><StatusBadge status={i.status} /></Td>
+                  <Td className="font-mono font-black text-[#447a5d]">৳³ {parseFloat(i.total_amount).toLocaleString()}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </ContentCard>
     </div>
   );
+
 }

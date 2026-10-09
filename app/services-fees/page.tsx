@@ -1,85 +1,98 @@
-import { PageTitle, Card, Badge } from "@/components/UI";
 import { services } from "@/lib/rjsc/services";
 import { getLegalReferences, getFeeRule } from "@/lib/rjsc/rule-engine";
 import { EntityType } from "@/lib/rjsc/types";
+import { PageHeader, ContentCard, StatCard, StatusBadge, Table, Th, Td } from "@/components/SharedUI";
+import { ReceiptText, CheckCircle2, AlertTriangle, Building2 } from "lucide-react";
 
 export default function Page() {
-  return (
-    <>
-      <PageTitle title="Services & Fees" desc="RJSC service master used by dropdowns and automation" />
-      <Card>
-        <div className="table-wrap overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-              <tr>
-                <th className="p-3">Service & Category</th>
-                <th className="p-3">Entity Types</th>
-                <th className="p-3">Fee Rule Status</th>
-                <th className="p-3">Requirements</th>
-                <th className="p-3">Default Next Action</th>
-                <th className="p-3">Source & References</th>
-              </tr>
-            </thead>
-            <tbody>
-              {services.map(s => {
-                const isNeedsReview = s.sourceStatus === 'NEEDS_SOURCE_REVIEW';
-                const refs = getLegalReferences(s.id, s.entityTypes[0] || EntityType.PRIVATE_COMPANY);
-                const hasFeeRule = s.entityTypes.some(e => getFeeRule(s.id, e) !== null);
+  const needsReview = services.filter(s => s.sourceStatus === 'NEEDS_SOURCE_REVIEW').length;
+  const verified = services.length - needsReview;
+  const configured = services.filter(s => s.entityTypes.some(e => getFeeRule(s.id, e) !== null)).length;
 
-                return (
-                  <tr className="border-t" key={s.id}>
-                    <td className="p-3">
-                      <div className="font-semibold">{s.serviceName}</div>
-                      <div className="mt-1"><Badge>{s.category}</Badge></div>
-                    </td>
-                    <td className="p-3">
-                      <div className="flex flex-wrap gap-1">
-                        {s.entityTypes.map(e => (
-                          <Badge key={e}>{e.replace('_', ' ')}</Badge>
+  return (
+    <div className="mx-auto max-w-7xl space-y-6 pb-12">
+      <PageHeader
+        icon={ReceiptText}
+        title="Services & Fees"
+        subtitle="RJSC service master used by dropdowns and automation."
+      />
+
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <StatCard title="Total Services" value={services.length} icon={ReceiptText} color="aqua" />
+        <StatCard title="Configured" value={configured} icon={Building2} color="yellow" />
+        <StatCard title="Needs Review" value={needsReview} icon={AlertTriangle} color="coral" />
+        <StatCard title="Verified Sources" value={verified} icon={CheckCircle2} color="sage" />
+      </div>
+
+      <ContentCard>
+        <Table>
+          <thead>
+            <tr>
+              <Th>Service & Category</Th>
+              <Th>Entity Types</Th>
+              <Th>Fee Rule Status</Th>
+              <Th>Requirements</Th>
+              <Th>Default Next Action</Th>
+              <Th>Source & References</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {services.map(s => {
+              const isNeedsReview = s.sourceStatus === 'NEEDS_SOURCE_REVIEW';
+              const refs = getLegalReferences(s.id, s.entityTypes[0] || EntityType.PRIVATE_COMPANY);
+              const hasFeeRule = s.entityTypes.some(e => getFeeRule(s.id, e) !== null);
+
+              return (
+                <tr key={s.id}>
+                  <Td>
+                    <div className="font-black text-[#181818]">{s.serviceName}</div>
+                    <div className="mt-2"><StatusBadge status={s.category} /></div>
+                  </Td>
+                  <Td>
+                    <div className="flex flex-wrap gap-2">
+                      {s.entityTypes.map(e => (
+                        <span key={e} className="inline-flex items-center rounded-lg bg-[#e8f7f9] px-2 py-1 text-[10px] font-bold text-[#2c747d] uppercase tracking-widest">
+                          {e.replace('_', ' ')}
+                        </span>
+                      ))}
+                    </div>
+                  </Td>
+                  <Td>
+                    {hasFeeRule ? (
+                       <span className="font-black text-[#447a5d] text-sm">Configured</span>
+                    ) : (
+                       <span className="font-bold text-[#a03c2a] text-sm">Needs Source Review</span>
+                    )}
+                  </Td>
+                  <Td className="text-sm font-bold text-[#6c7671]">
+                    <div>Docs: {s.requiredDocuments.length}</div>
+                    <div>Checklist: {s.checklist.length}</div>
+                  </Td>
+                  <Td className="text-sm font-medium">
+                    {s.nextAction ? <span className="font-bold text-[#181818]">{s.nextAction}</span> : <span className="text-[#a03c2a] font-bold">Needs Source Review</span>}
+                  </Td>
+                  <Td className="min-w-[250px]">
+                    <div className="mb-2">
+                      <StatusBadge status={isNeedsReview ? "Needs Review" : "Verified"} />
+                    </div>
+                    {refs.length > 0 ? (
+                      <div className="text-xs space-y-1 mt-2">
+                        {refs.map(r => (
+                          <div key={r.id} className="text-[#4b4d47] font-medium leading-relaxed">
+                            <span className="font-black text-[#181818]">{r.lawName}</span> - {r.section}
+                          </div>
                         ))}
                       </div>
-                    </td>
-                    <td className="p-3">
-                      {hasFeeRule ? (
-                         <span className="text-emerald-600 font-medium">Configured</span>
-                      ) : (
-                         <span className="text-amber-600 font-medium">Needs Source Review</span>
-                      )}
-                    </td>
-                    <td className="p-3 text-slate-600">
-                      <div>Docs: {s.requiredDocuments.length}</div>
-                      <div>Checklist: {s.checklist.length}</div>
-                    </td>
-                    <td className="p-3 min-w-[200px]">
-                      {s.nextAction || <span className="text-slate-400">Needs Source Review</span>}
-                    </td>
-                    <td className="p-3 min-w-[250px]">
-                      <div className="mb-2">
-                        {isNeedsReview ? (
-                          <Badge>Needs Source Review</Badge>
-                        ) : (
-                          <Badge>Verified</Badge>
-                        )}
-                      </div>
-                      {refs.length > 0 ? (
-                        <div className="text-xs space-y-1">
-                          {refs.map(r => (
-                            <div key={r.id} className="text-slate-600">
-                              <span className="font-semibold">{r.lawName}</span> - {r.section}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-slate-400 text-xs">No references loaded</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </>
+                    ) : (
+                      <span className="text-[#6c7671] text-xs font-bold italic">No references loaded</span>
+                    )}
+                  </Td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
+      </ContentCard>
+    </div>
   );
 }

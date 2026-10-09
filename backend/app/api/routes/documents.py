@@ -58,8 +58,8 @@ class DocumentUpdate(BaseModel):
 @router.post("/upload", response_model=DocumentResponse)
 async def upload_document(
     file: UploadFile = File(...),
-    client_id: Optional[UUID4] = Form(None),
-    work_id: Optional[UUID4] = Form(None),
+    client_id: Optional[uuid.UUID] = Form(None),
+    work_id: Optional[uuid.UUID] = Form(None),
     category: str = Form(...),
     document_date: Optional[date] = Form(None),
     notes: Optional[str] = Form(None),

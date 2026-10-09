@@ -1,22 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useEffect } from "react";
-import {
-  Search,
-  Plus,
-  SlidersHorizontal,
-  CalendarDays,
-  FileText,
-  FolderOpen,
-  ChevronRight,
-  BriefcaseBusiness,
-  Clock3,
-  CheckCircle2,
-  CircleDollarSign,
-} from "lucide-react";
+import { useMemo, useState, useEffect, useCallback } from "react";
+import { Search, FolderOpen, BriefcaseBusiness, CheckCircle2, CircleDollarSign, X } from "lucide-react";
 import { getWorks } from "@/lib/api/works";
 import { getClients } from "@/lib/api/clients";
+import { PageHeader, ContentCard, StatCard, StatusBadge, EmptyState, LoadingState, Table, Th, Td } from "@/components/SharedUI";
+import { NewWorkForm } from "@/components/NewWorkForm";
 
 export default function WorkRegisterPage() {
   const [works, setWorks] = useState<any[]>([]);
@@ -24,14 +14,28 @@ export default function WorkRegisterPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  useEffect(() => {
+  const fetchAll = useCallback(() => {
     Promise.all([getWorks(), getClients()]).then(([w, c]) => {
        setWorks(w);
        setClients(c);
        setLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  // Prevent background scroll
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+  }, [isModalOpen]);
 
   const clientMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -49,35 +53,37 @@ export default function WorkRegisterPage() {
     });
   }, [search, statusFilter, works, clientMap]);
 
+  const inProgress = works.filter(w => w.status === "In Progress").length;
+  const pendingCheck = works.filter(w => w.status === "Pending Check").length;
+  const completed = works.filter(w => w.status === "Completed").length;
+
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <FolderOpen className="w-6 h-6 text-emerald-600" />
-            Work Register
-          </h1>
-          <p className="text-slate-500 mt-1">Track all active and completed service requests.</p>
-        </div>
-        <Link
-          href="/new-work"
-          className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Start New Work
-        </Link>
+    <div className="mx-auto max-w-7xl space-y-6 pb-12">
+      <PageHeader
+        icon={FolderOpen}
+        title="Work Register"
+        subtitle="Track all active and completed service requests."
+        actionLabel="Start New Work"
+        actionOnClick={() => setIsModalOpen(true)}
+      />
+
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <StatCard title="Total Works" value={works.length} icon={BriefcaseBusiness} color="aqua" />
+        <StatCard title="In Progress" value={inProgress} icon={CircleDollarSign} color="yellow" />
+        <StatCard title="Pending Review" value={pendingCheck} icon={FolderOpen} color="coral" />
+        <StatCard title="Completed" value={completed} icon={CheckCircle2} color="sage" />
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row gap-4 justify-between items-center bg-slate-50">
+      <ContentCard>
+        <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-[#fffdf7] p-4 border-b border-[#ece5d9]">
           <div className="relative flex-1 max-w-md w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4b4d47]" />
             <input
               type="text"
               placeholder="Search by ID, client, or service..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full pl-9 pr-4 py-2 text-sm border border-[#d9e3df] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#79b993]"
             />
           </div>
 
@@ -85,7 +91,7 @@ export default function WorkRegisterPage() {
              <select
                value={statusFilter}
                onChange={e => setStatusFilter(e.target.value)}
-               className="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white"
+               className="px-3 py-2 text-sm border border-[#d9e3df] rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#79b993]"
              >
                <option value="All">All Statuses</option>
                <option value="Pending Check">Pending Check</option>
@@ -95,61 +101,78 @@ export default function WorkRegisterPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-white text-slate-600 font-medium border-b border-slate-200">
+        {loading ? (
+          <LoadingState />
+        ) : filtered.length === 0 ? (
+          <EmptyState title="No works found" message="Try adjusting your filters or search query." icon={FolderOpen} />
+        ) : (
+          <Table>
+            <thead>
               <tr>
-                <th className="px-6 py-4">Work ID & Client</th>
-                <th className="px-6 py-4">Service</th>
-                <th className="px-6 py-4">Assigned</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Govt Fee</th>
-                <th className="px-6 py-4">Total Bill</th>
+                <Th>Work ID & Client</Th>
+                <Th>Service</Th>
+                <Th>Assigned</Th>
+                <Th>Status</Th>
+                <Th>Govt Fee</Th>
+                <Th>Total Bill</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">Loading works...</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
-                    No works found.
-                  </td>
+            <tbody>
+              {filtered.map((w) => (
+                <tr key={w.id}>
+                  <Td>
+                    <div className="font-black text-[#181818]">{w.work_code}</div>
+                    <Link href={`/clients/${w.client_id}`} className="text-[#447a5d] text-xs hover:underline font-bold mt-0.5 inline-block">
+                      {clientMap[w.client_id] || "Unknown Client"}
+                    </Link>
+                  </Td>
+                  <Td>
+                    <div className="font-bold text-[#181818]">{w.service_id}</div>
+                    <div className="text-[#6c7671] text-[11px] uppercase tracking-wider font-bold mt-0.5">{w.entity_type.replace('_', ' ')}</div>
+                  </Td>
+                  <Td>
+                    <span className="font-bold">{w.assigned_to || "-"}</span>
+                  </Td>
+                  <Td>
+                    <StatusBadge status={w.status} />
+                  </Td>
+                  <Td className="font-mono">
+                    {w.government_fee !== null ? `৳ ${parseFloat(w.government_fee).toLocaleString()}` : 'Unknown'}
+                  </Td>
+                  <Td className="font-mono font-black text-[#181818]">
+                    {w.total_bill !== null ? `৳ ${parseFloat(w.total_bill).toLocaleString()}` : 'Pending'}
+                  </Td>
                 </tr>
-              ) : (
-                filtered.map((w) => (
-                  <tr key={w.id} className="hover:bg-slate-50 group">
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-slate-900">{w.work_code}</div>
-                      <Link href={`/clients/${w.client_id}`} className="text-emerald-600 text-xs hover:underline mt-0.5 inline-block">
-                        {clientMap[w.client_id] || "Unknown Client"}
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-slate-800">{w.service_id}</div>
-                      <div className="text-slate-500 text-xs mt-0.5">{w.entity_type.replace('_', ' ')}</div>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">
-                      {w.assigned_to || "-"}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700">
-                        {w.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-slate-600 font-mono">
-                      {w.government_fee !== null ? `৳ ${parseFloat(w.government_fee).toLocaleString()}` : 'Unknown'}
-                    </td>
-                    <td className="px-6 py-4 text-emerald-700 font-mono font-medium">
-                      {w.total_bill !== null ? `৳ ${parseFloat(w.total_bill).toLocaleString()}` : 'Pending'}
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
             </tbody>
-          </table>
+          </Table>
+        )}
+      </ContentCard>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#181818]/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="relative w-full max-w-[1100px] bg-[#fffaf0] rounded-2xl shadow-xl overflow-hidden my-auto max-h-[95vh] flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-[#ece5d9] bg-white sticky top-0 z-10">
+              <div>
+                <h2 className="text-xl font-black text-[#181818]">Start New Work</h2>
+                <p className="text-[#6c7671] text-sm mt-1">Calculate fees, check documents, and generate rules.</p>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="text-[#6c7671] hover:text-[#181818] transition bg-[#fce9e4] hover:bg-[#eac4bc] p-2 rounded-full">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto bg-transparent">
+              <NewWorkForm
+                onSuccess={() => {
+                  setIsModalOpen(false);
+                  fetchAll();
+                }}
+                onCancel={() => setIsModalOpen(false)}
+              />
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
