@@ -25,6 +25,8 @@ from app.models.work import Work
 from app.services.storage import get_storage_provider
 from app.core.config import settings
 from pydantic import BaseModel, UUID4
+from app.api.deps import require_roles
+from app.models.user import RoleEnum, User
 
 router = APIRouter()
 
@@ -70,10 +72,10 @@ async def upload_document(
     ALLOWED_EXTENSIONS = {'.pdf', '.docx', '.xlsx', '.xls', '.csv', '.jpg', '.jpeg', '.png'}
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Unsupported file extension")
-        
+
     if file.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported file type")
-        
+
     import mimetypes
     guessed = mimetypes.guess_type(file.filename or "")[0]
     if guessed and guessed != file.content_type and file.content_type not in ('application/octet-stream', 'application/x-msdownload'):
@@ -98,22 +100,22 @@ async def upload_document(
         duplicate = db.query(Document).filter(Document.client_id.is_(None), Document.work_id == work_id, Document.file_hash == file_hash, Document.status != "DELETED").first()
     else:
         duplicate = db.query(Document).filter(Document.client_id.is_(None), Document.work_id.is_(None), Document.file_hash == file_hash, Document.status != "DELETED").first()
-        
+
     if duplicate:
         raise HTTPException(status_code=409, detail="Duplicate file in this context")
-        
+
     await file.seek(0)
 
     from app.models.client import Client
     from app.models.work import Work
     upload_context = {}
-    
+
     if client_id:
         c_obj = db.query(Client).filter(Client.id == client_id).first()
         if not c_obj:
             raise HTTPException(status_code=404, detail="Client not found")
         upload_context['client_name'] = f"{c_obj.client_code} - {c_obj.legal_name}"
-        
+
     if work_id:
         work_obj = db.query(Work).filter(Work.id == work_id).first()
         if not work_obj:
@@ -171,7 +173,7 @@ def list_documents(
       query = query.filter(Document.status == status)
     if search:
       query = query.filter(Document.document_name.ilike(f"%{search}%"))
-      
+
     return query.order_by(Document.created_at.desc()).all()
 
 @router.get("/{document_id}", response_model=DocumentResponse)
@@ -182,15 +184,20 @@ def get_document(document_id: UUID4, db: Session = Depends(get_db)):
     return doc
 
 @router.patch("/{document_id}", response_model=DocumentResponse)
-def update_document(document_id: UUID4, payload: DocumentUpdate, db: Session = Depends(get_db)):
+def update_document(
+    document_id: UUID4,
+    payload: DocumentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(RoleEnum.ADMIN.value, RoleEnum.MANAGER.value, RoleEnum.SENIOR.value))
+):
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
       raise HTTPException(status_code=404, detail="Document not found")
-    
+
     update_data = payload.model_dump(exclude_unset=True)
     for key, value in update_data.items():
       setattr(doc, key, value)
-      
+
     db.commit()
     db.refresh(doc)
     return doc
@@ -200,18 +207,18 @@ async def download_document(document_id: UUID4, db: Session = Depends(get_db)):
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
       raise HTTPException(status_code=404, detail="Document not found")
-      
+
     if doc.storage_provider != "local" or not doc.storage_reference:
       raise HTTPException(status_code=404, detail="Document file not available")
-      
+
     provider = get_storage_provider(doc.storage_provider)
-    
+
     from fastapi.responses import StreamingResponse
-    
+
     if not await provider.exists(doc.storage_reference):
         raise HTTPException(status_code=404, detail="File missing from storage")
     file_stream = provider.get_file_stream(doc.storage_reference)
-        
+
     return StreamingResponse(
         file_stream,
         media_type=doc.mime_type or "application/octet-stream",

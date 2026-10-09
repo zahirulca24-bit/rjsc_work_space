@@ -10,6 +10,8 @@ from app.db.session import get_db
 from app.models.finance import Transaction, Invoice
 from app.models.client import Client
 from app.models.work import Work
+from app.api.deps import require_roles
+from app.models.user import RoleEnum, User
 
 router = APIRouter()
 
@@ -47,17 +49,17 @@ def update_invoice_status(db: Session, invoice_id: UUID4):
     inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not inv:
         return
-        
+
     # Valid collection amounts
     collected = db.query(func.sum(Transaction.amount)).filter(
         Transaction.invoice_id == invoice_id,
         Transaction.transaction_type == "COLLECTION"
     ).scalar() or Decimal("0")
-    
+
     # Deriving status
     if inv.status == "CANCELLED":
         return
-        
+
     if collected <= 0:
         inv.status = "ISSUED"
     elif collected < inv.total_amount:
@@ -66,10 +68,14 @@ def update_invoice_status(db: Session, invoice_id: UUID4):
         inv.status = "PAID"
 
 @router.post("", response_model=TransactionResponse)
-def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)):
+def create_transaction(
+    payload: TransactionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(RoleEnum.ADMIN.value, RoleEnum.MANAGER.value))
+):
     if payload.amount < 0:
         raise HTTPException(status_code=400, detail="Amount must be positive")
-    
+
     if payload.transaction_type == "COLLECTION" and payload.amount == 0:
         raise HTTPException(status_code=400, detail="Collection amount must be > 0")
 
@@ -81,28 +87,28 @@ def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)
             raise HTTPException(status_code=400, detail="Cannot collect on DRAFT or CANCELLED invoice")
         if payload.client_id and str(inv.client_id) != str(payload.client_id):
             raise HTTPException(status_code=400, detail="Invoice does not belong to client")
-            
+
         if payload.transaction_type == "COLLECTION":
             collected = db.query(func.sum(Transaction.amount)).filter(
                 Transaction.invoice_id == inv.id,
                 Transaction.transaction_type == "COLLECTION"
             ).scalar() or Decimal("0")
-            
+
             if collected + payload.amount > inv.total_amount:
                 raise HTTPException(status_code=400, detail="Collection exceeds outstanding amount")
-                
+
     if payload.client_id:
         c = db.query(Client).filter(Client.id == payload.client_id).first()
         if not c:
             raise HTTPException(status_code=404, detail="Client not found")
-            
+
     if payload.work_id:
         w = db.query(Work).filter(Work.id == payload.work_id).first()
         if not w:
             raise HTTPException(status_code=404, detail="Work not found")
         if payload.client_id and str(w.client_id) != str(payload.client_id):
             raise HTTPException(status_code=400, detail="Work does not belong to client")
-            
+
     txn = Transaction(
         client_id=payload.client_id,
         work_id=payload.work_id,
@@ -115,7 +121,7 @@ def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)
         description=payload.description
     )
     db.add(txn)
-    
+
     try:
         db.flush()
         if payload.invoice_id and payload.transaction_type == "COLLECTION":
@@ -125,7 +131,7 @@ def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)
     except Exception as e:
         db.rollback()
         raise e
-        
+
     return txn
 
 @router.get("", response_model=List[TransactionResponse])
@@ -162,7 +168,7 @@ def list_transactions(
             Client.legal_name.ilike(f"%{search}%"),
             Invoice.invoice_no.ilike(f"%{search}%")
         ))
-        
+
     return query.order_by(desc(Transaction.transaction_date), desc(Transaction.created_at)).all()
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)
@@ -173,11 +179,16 @@ def get_transaction(transaction_id: UUID4, db: Session = Depends(get_db)):
     return txn
 
 @router.patch("/{transaction_id}", response_model=TransactionResponse)
-def update_transaction(transaction_id: UUID4, payload: TransactionUpdate, db: Session = Depends(get_db)):
+def update_transaction(
+    transaction_id: UUID4,
+    payload: TransactionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(RoleEnum.ADMIN.value, RoleEnum.MANAGER.value))
+):
     txn = db.query(Transaction).filter(Transaction.id == transaction_id).first()
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
-        
+
     if payload.transaction_type is not None:
         if txn.transaction_type == "COLLECTION" and txn.invoice_id is not None and payload.transaction_type != "COLLECTION":
             raise HTTPException(status_code=400, detail="Cannot change transaction_type of a linked invoice collection")
@@ -188,7 +199,7 @@ def update_transaction(transaction_id: UUID4, payload: TransactionUpdate, db: Se
         txn.reference = payload.reference
     if payload.description is not None:
         txn.description = payload.description
-        
+
     db.commit()
     db.refresh(txn)
     return txn

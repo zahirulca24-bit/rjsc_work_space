@@ -1,4 +1,5 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+import { fetchApi } from "./fetchApi";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export const getClients = async (search?: string, entityType?: string, status?: string) => {
     let url = `${API_BASE}/api/clients?`;
@@ -6,19 +7,19 @@ export const getClients = async (search?: string, entityType?: string, status?: 
     if (entityType) url += `entity_type=${entityType}&`;
     if (status) url += `status=${status}&`;
     
-    const res = await fetch(url);
+    const res = await fetchApi(url);
     if (!res.ok) throw new Error("Failed to fetch clients");
     return res.json();
 };
 
 export const getClient = async (id: string) => {
-    const res = await fetch(`${API_BASE}/api/clients/${id}`);
+    const res = await fetchApi(`${API_BASE}/api/clients/${id}`);
     if (!res.ok) throw new Error("Failed to fetch client");
     return res.json();
 };
 
 export const createClient = async (clientData: any) => {
-    const res = await fetch(`${API_BASE}/api/clients`, {
+    const res = await fetchApi(`${API_BASE}/api/clients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(clientData)
@@ -31,7 +32,7 @@ export const createClient = async (clientData: any) => {
 };
 
 export const updateClient = async (id: string, clientData: any) => {
-    const res = await fetch(`${API_BASE}/api/clients/${id}`, {
+    const res = await fetchApi(`${API_BASE}/api/clients/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(clientData)
@@ -41,20 +42,20 @@ export const updateClient = async (id: string, clientData: any) => {
 };
 
 export const getClientCurrentPosition = async (id: string) => {
-    const res = await fetch(`${API_BASE}/api/clients/${id}/current-position`);
+    const res = await fetchApi(`${API_BASE}/api/clients/${id}/current-position`);
     if (!res.ok) throw new Error("Failed to fetch current position");
     return res.json();
 };
 
 export const getClientHistory = async (id: string) => {
-    const res = await fetch(`${API_BASE}/api/clients/${id}/history`);
+    const res = await fetchApi(`${API_BASE}/api/clients/${id}/history`);
     if (!res.ok) throw new Error("Failed to fetch history");
     return res.json();
 };
 
 export const addClientHistory = async (id: string, type: string, data: any) => {
     // type e.g., 'registered-office-history'
-    const res = await fetch(`${API_BASE}/api/clients/${id}/${type}`, {
+    const res = await fetchApi(`${API_BASE}/api/clients/${id}/${type}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)

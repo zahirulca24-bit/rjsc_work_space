@@ -1,19 +1,20 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+import { fetchApi } from "./fetchApi";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export const getWorks = async () => {
-    const res = await fetch(`${API_BASE}/api/works`);
+    const res = await fetchApi(`${API_BASE}/api/works`);
     if (!res.ok) throw new Error("Failed to fetch works");
     return res.json();
 };
 
 export const getWork = async (id: string) => {
-    const res = await fetch(`${API_BASE}/api/works/${id}`);
+    const res = await fetchApi(`${API_BASE}/api/works/${id}`);
     if (!res.ok) throw new Error("Failed to fetch work");
     return res.json();
 };
 
 export const createWork = async (workData: any) => {
-    const res = await fetch(`${API_BASE}/api/works`, {
+    const res = await fetchApi(`${API_BASE}/api/works`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(workData)
@@ -26,7 +27,7 @@ export const createWork = async (workData: any) => {
 };
 
 export const updateWork = async (id: string, workData: any) => {
-    const res = await fetch(`${API_BASE}/api/works/${id}`, {
+    const res = await fetchApi(`${API_BASE}/api/works/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(workData)
@@ -36,7 +37,7 @@ export const updateWork = async (id: string, workData: any) => {
 };
 
 export const getWorkFinancialSummary = async (id: string) => {
-    const res = await fetch(`${API_BASE}/api/works/${id}/financial-summary`);
+    const res = await fetchApi(`${API_BASE}/api/works/${id}/financial-summary`);
     if (!res.ok) throw new Error("Failed to fetch work financial summary");
     return res.json();
 };

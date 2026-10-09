@@ -256,7 +256,7 @@ function ClientFinancials({ client_id }: { client_id: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch((process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000") + "/api/clients/" + client_id + "/financial-summary")
+    fetch((process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000") + "/api/clients/" + client_id + "/financial-summary", { credentials: "include" })
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
       .catch(console.error);
@@ -361,7 +361,7 @@ function ClientDocuments({ client_id }: { client_id: string }) {
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {docs.map(doc => {
-            const url = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000") + "/api/documents/" + doc.id + "/download";
+            const url = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000") + "/api/documents/" + doc.id + "/download";
             return (
               <div key={doc.id} className="p-3 bg-white rounded-xl border border-[#d9e3df] shadow-sm flex justify-between items-center text-sm group">
                 <div className="truncate flex items-center gap-3">

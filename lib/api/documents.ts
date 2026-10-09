@@ -1,4 +1,5 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+import { fetchApi } from "./fetchApi";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export async function listDocuments(params?: { client_id?: string; work_id?: string; category?: string; status?: string; search?: string }) {
   const query = new URLSearchParams();
@@ -9,13 +10,13 @@ export async function listDocuments(params?: { client_id?: string; work_id?: str
     if (params.status) query.append("status", params.status);
     if (params.search) query.append("search", params.search);
   }
-  const res = await fetch(`${API_BASE}/api/documents?${query.toString()}`);
+  const res = await fetchApi(`${API_BASE}/api/documents?${query.toString()}`);
   if (!res.ok) throw new Error("Failed to list documents");
   return res.json();
 }
 
 export async function getDocument(document_id: string) {
-  const res = await fetch(`${API_BASE}/api/documents/${document_id}`);
+  const res = await fetchApi(`${API_BASE}/api/documents/${document_id}`);
   if (!res.ok) throw new Error("Failed to get document");
   return res.json();
 }
@@ -36,7 +37,7 @@ export async function uploadDocument(
   if (document_date && document_date !== "undefined" && document_date !== "null") formData.append("document_date", document_date);
   if (notes && notes !== "undefined" && notes !== "null") formData.append("notes", notes);
 
-  const res = await fetch(`${API_BASE}/api/documents/upload`, {
+  const res = await fetchApi(`${API_BASE}/api/documents/upload`, {
     method: "POST",
     body: formData,
   });
@@ -53,7 +54,7 @@ export async function uploadDocument(
 }
 
 export async function updateDocument(document_id: string, payload: { category?: string; status?: string; document_date?: string; notes?: string }) {
-  const res = await fetch(`${API_BASE}/api/documents/${document_id}`, {
+  const res = await fetchApi(`${API_BASE}/api/documents/${document_id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -67,13 +68,13 @@ export function getDocumentDownloadUrl(document_id: string) {
 }
 
 export async function getWorkChecklist(work_id: string) {
-  const res = await fetch(`${API_BASE}/api/works/${work_id}/checklist`);
+  const res = await fetchApi(`${API_BASE}/api/works/${work_id}/checklist`);
   if (!res.ok) throw new Error("Failed to fetch checklist");
   return res.json();
 }
 
 export async function updateChecklistItem(work_id: string, item_id: string, status: string) {
-  const res = await fetch(`${API_BASE}/api/works/${work_id}/checklist/${item_id}`, {
+  const res = await fetchApi(`${API_BASE}/api/works/${work_id}/checklist/${item_id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),

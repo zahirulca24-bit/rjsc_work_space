@@ -10,6 +10,8 @@ from app.db.session import get_db
 from app.models.finance import Invoice, Transaction
 from app.models.client import Client
 from app.models.work import Work
+from app.api.deps import require_roles
+from app.models.user import RoleEnum, User
 
 router = APIRouter()
 
@@ -35,7 +37,7 @@ class InvoiceResponse(BaseModel):
     total_amount: Decimal
     status: str
     notes: Optional[str]
-    
+
 class InvoiceUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
@@ -54,28 +56,32 @@ def generate_invoice_no(db: Session) -> str:
     return f"INV-{max_num + 1:04d}"
 
 @router.post("", response_model=InvoiceResponse)
-def create_invoice(payload: InvoiceCreate, db: Session = Depends(get_db)):
+def create_invoice(
+    payload: InvoiceCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(RoleEnum.ADMIN.value, RoleEnum.MANAGER.value))
+):
     if payload.professional_fee < 0 or payload.government_fee < 0 or payload.other_cost < 0:
         raise HTTPException(status_code=400, detail="Fee amounts must be >= 0")
-        
+
     client = db.query(Client).filter(Client.id == payload.client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-        
+
     if payload.work_id:
         work = db.query(Work).filter(Work.id == payload.work_id).first()
         if not work:
             raise HTTPException(status_code=404, detail="Work not found")
         if str(work.client_id) != str(payload.client_id):
             raise HTTPException(status_code=400, detail="Work does not belong to client")
-            
+
         if work.government_fee is None:
             raise HTTPException(status_code=400, detail="Work government fee is unknown/pending. Please resolve it first.")
-            
+
     total_amount = payload.professional_fee + payload.government_fee + payload.other_cost
-    
+
     invoice_no = generate_invoice_no(db)
-    
+
     inv = Invoice(
         invoice_no=invoice_no,
         client_id=payload.client_id,
@@ -123,7 +129,7 @@ def list_invoices(
             Client.client_code.ilike(f"%{search}%"),
             Work.work_code.ilike(f"%{search}%")
         ))
-        
+
     return query.order_by(desc(Invoice.invoice_date), desc(Invoice.created_at)).all()
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
@@ -134,16 +140,21 @@ def get_invoice(invoice_id: UUID4, db: Session = Depends(get_db)):
     return inv
 
 @router.patch("/{invoice_id}", response_model=InvoiceResponse)
-def update_invoice(invoice_id: UUID4, payload: InvoiceUpdate, db: Session = Depends(get_db)):
+def update_invoice(
+    invoice_id: UUID4,
+    payload: InvoiceUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(RoleEnum.ADMIN.value, RoleEnum.MANAGER.value))
+):
     inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
-        
+
     if payload.status is not None:
         inv.status = payload.status
     if payload.notes is not None:
         inv.notes = payload.notes
-        
+
     db.commit()
     db.refresh(inv)
     return inv

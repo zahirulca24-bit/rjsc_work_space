@@ -10,3 +10,4 @@ from app.models.document import Document
 from app.models.workflow import Task, WorkReview
 from app.models.finance import Invoice, Transaction
 from app.models.audit import AuditLog
+from app.models.user import User, RoleEnum

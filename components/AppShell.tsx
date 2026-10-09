@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
+import { useAuth } from "@/lib/auth/AuthProvider";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -27,9 +28,10 @@ import {
   UserRound,
   CheckCircle2,
   Clock3,
+  LogOut,
 } from "lucide-react";
 
-const groups = [
+const RAW_GROUPS = [
   {
     label: "Overview",
     items: [
@@ -65,18 +67,42 @@ const groups = [
       { label: "Team", href: "/team", icon: Users },
       { label: "Reports", href: "/reports", icon: BarChart3 },
       { label: "Settings", href: "/settings", icon: Settings },
+      { label: "Users", href: "/users", icon: Users },
     ],
   },
 ];
 
-const allItems = groups.flatMap((g) => g.items);
+const allItems = RAW_GROUPS.flatMap((g: any) => g.items);
 
 export default function AppShell({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { user, logout } = useAuth();
+
   const pathname = usePathname();
+  if (pathname === "/login") return <>{children}</>;
+
+  const groups = useMemo(() => {
+    if (!user) return [];
+    return RAW_GROUPS.map(section => {
+      const filteredItems = section.items.filter((item: any) => {
+        if (user.role === "JUNIOR") {
+           if (item.href === "/settings" || item.href === "/transactions" || item.href === "/billing" || item.href === "/users") return false;
+        }
+        if (user.role === "SENIOR") {
+           if (item.href === "/settings" || item.href === "/users") return false;
+        }
+        if (user.role === "MANAGER") {
+           if (item.href === "/users") return false;
+        }
+        return true;
+      });
+      return { ...section, items: filteredItems };
+    }).filter(section => section.items.length > 0);
+  }, [user]);
+
   const router = useRouter();
 
   const [collapsed, setCollapsed] = useState(false);
@@ -188,7 +214,7 @@ export default function AppShell({
               )}
 
               <div className="space-y-1">
-                {group.items.map((item) => {
+                {group.items.map((item: any) => {
                   const Icon = item.icon;
                   const active =
                     pathname === item.href ||
@@ -328,7 +354,7 @@ export default function AppShell({
                     </div>
 
                     <div className="max-h-[330px] overflow-y-auto p-2">
-                      {results.map((item) => {
+                      {results.map((item: any) => {
                         const Icon = item.icon;
 
                         return (
