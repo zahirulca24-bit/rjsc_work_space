@@ -7,7 +7,6 @@ export default function SettingsPage() {
   const [department, setDepartment] = useState("RJSC Department");
   const [manager, setManager] = useState("Md. Zahirul Islam");
   const [defaultReviewer, setDefaultReviewer] = useState("Md. Zahirul Islam");
-  const [currency, setCurrency] = useState("BDT");
   const [timezone, setTimezone] = useState("Asia/Dhaka");
 
   const [emailAlerts, setEmailAlerts] = useState(true);
@@ -80,14 +79,7 @@ export default function SettingsPage() {
             <label>
               <div style={labelStyle}>Default Currency</div>
 
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                style={inputStyle}
-              >
-                <option>BDT</option>
-                <option>USD</option>
-              </select>
+              <input value="BDT (৳) — Bangladesh Taka" readOnly aria-label="Default Currency" style={{ ...inputStyle, background: "#f8fafc", color: "#315f55" }} />
             </label>
 
             <label>
