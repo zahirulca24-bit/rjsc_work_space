@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { CorporateEvent } from "@/lib/clients/history-types";
 import { buildTimeline } from "@/lib/clients/history-utils";
 import { Badge, Stat, PrimaryButton } from "@/components/UI";
-import { getClient, getClientCurrentPosition, getClientHistory } from "@/lib/api/clients";
+import { getClient, getClientCurrentPosition, getClientHistory, addClientHistory } from "@/lib/api/clients";
 import { getWorks } from "@/lib/api/works";
 import { PageHeader, ContentCard, StatCard, StatusBadge, Table, Th, Td, EmptyState } from "@/components/SharedUI";
 import { Building2, FolderOpen, AlertTriangle, FileText, BriefcaseBusiness } from "lucide-react";
@@ -28,6 +28,63 @@ export default function ClientProfilePage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editEvent, setEditEvent] = useState<CorporateEvent | null>(null);
+
+  const saveHistoryRecord = async (event: CorporateEvent) => {
+    const common = {
+      notes: event.notes || null,
+      source_document: event.sourceDocument || null
+    };
+    let route: string;
+    let body: Record<string, unknown>;
+
+    switch (event.type) {
+      case "AGM":
+        route = "agm-history";
+        body = { financial_year: event.financialYear, agm_date: event.status === "HELD" ? event.agmDate : null, status: event.status, ...common };
+        break;
+      case "ANNUAL_RETURN":
+        route = "annual-returns";
+        body = { financial_year: event.financialYear, filed_date: event.filingStatus === "FILED" ? event.filedDate : null, filing_status: event.filingStatus, due_date: event.dueDate || null, acknowledgement_reference: event.acknowledgementReference || null, notes: event.notes || null };
+        break;
+      case "NAME_CHANGE":
+        route = "name-history";
+        body = { previous_name: event.previousName, new_name: event.newName, effective_date: event.effectiveDate, ...common };
+        break;
+      case "REGISTERED_OFFICE_CHANGE":
+        route = "registered-office-history";
+        body = { address: event.address, effective_from: event.effectiveFrom, effective_to: event.effectiveTo || null, ...common };
+        break;
+      case "CAPITAL_CHANGE":
+        route = "capital-history";
+        body = { authorized_capital: event.authorizedCapital, paid_up_capital: event.paidUpCapital, effective_date: event.effectiveDate, change_type: event.changeType, ...common };
+        break;
+      case "DIRECTOR_CHANGE":
+        route = "directors";
+        body = { full_name: event.fullName, designation: event.designation, appointment_date: event.appointmentDate, cessation_date: event.cessationDate || null, is_current: event.current !== false, ...common };
+        break;
+      case "SHAREHOLDER_CHANGE":
+        route = "shareholders";
+        body = { shareholder_name: event.shareholderName, share_count: event.shareCount, share_value: event.shareValue || 0, effective_from: event.effectiveFrom || null, effective_to: event.effectiveTo || null, is_current: event.current !== false, ...common };
+        break;
+      case "RJSC_FILING":
+        route = "filings";
+        body = { service_type: event.serviceType, form_name: event.formName, submission_date: event.submissionDate || null, approval_date: event.approvalDate || null, status: event.status, reference: event.reference || null, notes: event.notes || null };
+        break;
+      case "MORTGAGE":
+        route = "mortgage-charges";
+        body = { lender: event.lender, secured_amount: event.securedAmount, creation_date: event.creationDate, status: event.status, notes: event.notes || null };
+        break;
+      case "COMPLIANCE_ISSUE":
+        route = "compliance-issues";
+        body = { title: event.title, category: event.category || "GENERAL", severity: event.severity || "MEDIUM", status: event.status, due_date: event.dueDate || null, identified_date: event.identifiedDate || null, notes: event.notes || null };
+        break;
+    }
+    // A history record is written only after explicit staff Save.
+    await addClientHistory(id, route, body);
+    setIsModalOpen(false);
+    setEditEvent(null);
+    await fetchAllData();
+  };
 
   const fetchAllData = async () => {
     try {
@@ -245,7 +302,7 @@ export default function ClientProfilePage() {
       )}
 
       {isModalOpen && (
-        <HistoryRecordModal isOpen={isModalOpen} clientId={id} editEvent={editEvent} onClose={() => setIsModalOpen(false)} onSave={() => { setIsModalOpen(false); fetchAllData(); }} />
+        <HistoryRecordModal isOpen={isModalOpen} clientId={id} editEvent={editEvent} onClose={() => setIsModalOpen(false)} onSave={saveHistoryRecord} />
       )}
     </div>
   );
