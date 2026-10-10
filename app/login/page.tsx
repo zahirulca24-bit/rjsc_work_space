@@ -34,8 +34,8 @@ export default function LoginPage() {
                     <div className="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-[#315f55] text-white shadow-md">
                         <ShieldCheck size={32} />
                     </div>
-                    <h1 className="text-2xl font-black text-[#294f48]">RJSC Office Auth</h1>
-                    <p className="mt-1 text-sm font-medium text-[#4a6b63]">Sign in to your account</p>
+                    <h1 className="text-2xl font-black text-[#294f48]">ZA Corporate Desk</h1>
+                    <p className="mt-1 text-sm font-medium text-[#4a6b63]">Internal Office Workspace · Sign in</p>
                 </div>
 
                 {error && (
