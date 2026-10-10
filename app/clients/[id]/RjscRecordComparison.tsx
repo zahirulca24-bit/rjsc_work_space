@@ -50,12 +50,18 @@ export default function RjscRecordComparison({ clientId, client, currentPosition
         source_reference: sourceReference.trim(), checked_on: checkedOn,
         is_verified: verified, fields: filtered
       });
-      setSnapshots(await listRjscSnapshots(clientId));
+      // A successful POST must not look like a failed save if the refresh fails.
+      setSaveMessage("Snapshot saved. Updating the display...");
       setFields({});
       setSourceReference("");
       setCheckedOn("");
       setVerified(false);
-      setSaveMessage("New RJSC snapshot saved. Earlier snapshots remain in history.");
+      try {
+        setSnapshots(await listRjscSnapshots(clientId));
+        setSaveMessage("Snapshot saved. Earlier snapshots remain in history.");
+      } catch {
+        setSaveMessage("Snapshot saved, but the list could not refresh. Reopen the profile to view it.");
+      }
     } catch (err: unknown) {
       setSnapshotError(err instanceof Error ? err.message : "Unable to save snapshot");
     } finally {
