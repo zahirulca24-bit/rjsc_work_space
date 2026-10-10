@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from app.api.deps import get_current_user
-from app.api.routes import status, health, clients, works, documents, storage, invoices, transactions, analytics, auth, users, tasks, audit, ai_documents, pilot_feedback
+from app.api.routes import status, health, clients, works, documents, storage, invoices, transactions, analytics, auth, users, tasks, audit, ai_documents, pilot_feedback, rjsc_snapshots
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
