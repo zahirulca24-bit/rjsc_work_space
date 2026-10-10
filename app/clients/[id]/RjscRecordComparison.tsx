@@ -36,6 +36,11 @@ export default function RjscRecordComparison({ clientId, client, currentPosition
   const normalized = (value: unknown) => String(value ?? "").trim().replace(/[,৳\s]/g, "").toLowerCase();
   const saveSnapshot = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (saving || loading || error) return;
+    if (!Object.values(fields).some(v => v.trim())) {
+      setSnapshotError("Enter at least one field from the RJSC source.");
+      return;
+    }
     setSaving(true);
     setSnapshotError("");
     setSaveMessage("");
@@ -59,24 +64,35 @@ export default function RjscRecordComparison({ clientId, client, currentPosition
   };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [docsError, setDocsError] = useState("");
 
   useEffect(() => {
     let active = true;
     setLoading(true);
-    Promise.all([listDocuments({ client_id: clientId }), listRjscSnapshots(clientId)])
+    Promise.allSettled([listDocuments({ client_id: clientId }), listRjscSnapshots(clientId)])
       .then(([documents, storedSnapshots]) => {
         if (!active) return;
-        if (!Array.isArray(documents) || !Array.isArray(storedSnapshots)) throw new Error("Unexpected response");
-        setDocs(documents);
-        setSnapshots(storedSnapshots);
-        setError("");
+        if (documents.status === "fulfilled" && Array.isArray(documents.value)) {
+          setDocs(documents.value);
+          setDocsError("");
+        } else {
+          setDocs([]);
+          setDocsError("Could not load linked documents. Retry by reopening this profile.");
+        }
+        if (storedSnapshots.status === "fulfilled" && Array.isArray(storedSnapshots.value)) {
+          setSnapshots(storedSnapshots.value);
+          setError("");
+        } else {
+          setSnapshots([]);
+          setError("Could not load saved RJSC snapshots. Do not enter new records until this is resolved.");
+        }
       })
-      .catch((err: unknown) => { if (active) setError(err instanceof Error ? err.message : "Unable to load sources"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [clientId]);
 
-  const directors = (currentPosition?.current_directors || []).map((d: any) => d.full_name).filter(Boolean).join(", ");
+  const directors = (Array.isArray(currentPosition?.current_directors) ? currentPosition.current_directors : [])
+    .map((d: any) => d.full_name).filter(Boolean).join(", ");
   const rows = [
     { key: "legal_name", label: "Legal Name", office: currentPosition?.current_legal_name || client?.legal_name },
     { key: "registration_no", label: "Registration No.", office: client?.registration_no },
@@ -118,9 +134,10 @@ export default function RjscRecordComparison({ clientId, client, currentPosition
           <input type="checkbox" checked={verified} onChange={e => setVerified(e.target.checked)} />
           I reviewed the cited RJSC source and confirm these entered values agree with it. Unchecked snapshots remain unverified.
         </label>
+        {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
         {snapshotError && <p role="alert" className="text-xs text-red-700">{snapshotError}</p>}
         {saveMessage && <p role="status" className="text-xs text-[#315f55]">{saveMessage}</p>}
-        <button type="submit" disabled={saving || loading} className="rounded-lg bg-[#447a5d] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{saving ? "Saving..." : "Save RJSC Snapshot"}</button>
+        <button type="submit" disabled={saving || loading || Boolean(error)} className="rounded-lg bg-[#447a5d] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{saving ? "Saving..." : "Save RJSC Snapshot"}</button>
       </form>
       {latest && <p className="text-xs text-[#6c7671]">Latest RJSC snapshot: {latest.checked_on}, source {latest.source_reference}, recorded by {latest.checked_by} — {latest.is_verified ? "Staff-verified" : "Draft / Unverified"}. {snapshots.length} snapshot(s) retained.</p>}
       <div className="overflow-x-auto">
@@ -148,7 +165,7 @@ export default function RjscRecordComparison({ clientId, client, currentPosition
       <div className="rounded-xl bg-[#eef7f3] p-4">
         <h4 className="text-sm font-bold text-[#315f55]">Relevant documents already linked</h4>
         {loading ? <p className="mt-2 text-xs">Checking client document index...</p> :
-          error ? <p role="alert" className="mt-2 text-xs text-red-700">Could not load documents: {error}</p> :
+          docsError ? <p role="alert" className="mt-2 text-xs text-red-700">{docsError}</p> :
           referenceDocs.length === 0 ? <p className="mt-2 text-xs">No certified copy, Form XII, Schedule X, incorporation certificate, or RJSC acknowledgement recorded.</p> :
           <ul className="mt-2 space-y-1 text-xs text-[#4b4d47]">
             {referenceDocs.slice(0, 12).map(d => <li key={d.id}>{d.category.replaceAll("_", " ")} — {d.document_name} (document status: {d.status || "Unknown"})</li>)}
