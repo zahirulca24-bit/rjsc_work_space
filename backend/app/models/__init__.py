@@ -15,3 +15,4 @@ from app.models.user import User, RoleEnum
 from app.models.ai import DocumentAIAnalysis
 
 from app.models.pilot_feedback import PilotFeedback
+from app.models.rjsc_snapshot import RjscSnapshot
