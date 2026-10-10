@@ -29,6 +29,8 @@ class SnapshotInput(BaseModel):
     @model_validator(mode="after")
     def validate_snapshot(self):
         self.source_reference = self.source_reference.strip()
+        if self.is_verified and not self.source_reference:
+            raise ValueError("Verified snapshots require a source reference")
         if not self.source_reference:
             raise ValueError("Source reference is required")
         if not self.fields:
@@ -36,6 +38,8 @@ class SnapshotInput(BaseModel):
         if set(self.fields) - ALLOWED_KEYS:
             raise ValueError("Unknown RJSC field key")
         self.fields = {k: v.strip() for k, v in self.fields.items() if isinstance(v, str) and v.strip()}
+        if any(len(v) > 1000 for v in self.fields.values()):
+            raise ValueError("Each RJSC source field must be 1000 characters or fewer")
         if not self.fields:
             raise ValueError("Enter at least one nonempty RJSC field")
         if self.checked_on > date.today():
