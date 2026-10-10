@@ -13,6 +13,11 @@ export default function UsersPage() {
     const [loading, setLoading] = useState(true);
 
     const [isAddMode, setIsAddMode] = useState(false);
+    const [passwordTarget, setPasswordTarget] = useState<{ id: string; name: string } | null>(null);
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [savingPassword, setSavingPassword] = useState(false);
+    const [passwordNotice, setPasswordNotice] = useState("");
     const [formData, setFormData] = useState({
         name: "",
         email: "",
@@ -46,6 +51,35 @@ export default function UsersPage() {
             loadUsers();
         } catch (e: any) {
             alert(e.message);
+        }
+    };
+
+    const closePasswordForm = () => {
+        setPasswordTarget(null);
+        setNewPassword("");
+        setConfirmPassword("");
+    };
+
+    const handleSetPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!passwordTarget || savingPassword) return;
+        if (newPassword.length < 8) {
+            alert("Use at least 8 characters.");
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            alert("Passwords do not match.");
+            return;
+        }
+        setSavingPassword(true);
+        try {
+            await updateUser(passwordTarget.id, { password: newPassword });
+            setPasswordNotice("Password updated for " + passwordTarget.name + ". Share the new password privately.");
+            closePasswordForm();
+        } catch (e: any) {
+            alert(e.message || "Could not update password");
+        } finally {
+            setSavingPassword(false);
         }
     };
 
@@ -107,6 +141,35 @@ export default function UsersPage() {
                 </ContentCard>
             )}
 
+            {passwordNotice && (
+                <div role="status" className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-800">
+                    {passwordNotice}
+                </div>
+            )}
+
+            {passwordTarget && (
+                <ContentCard className="p-4">
+                    <form onSubmit={handleSetPassword} className="space-y-4">
+                        <h2 className="text-lg font-bold text-[#294f48]">Change Password — {passwordTarget.name}</h2>
+                        <p className="text-xs text-gray-600">Admin sets a new password; the existing password is never displayed.</p>
+                        <div className="grid gap-3 md:grid-cols-2">
+                            <label className="block text-sm font-semibold">
+                                New Password
+                                <input type="password" autoComplete="new-password" minLength={8} required value={newPassword} onChange={e => setNewPassword(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                            </label>
+                            <label className="block text-sm font-semibold">
+                                Confirm Password
+                                <input type="password" autoComplete="new-password" minLength={8} required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" />
+                            </label>
+                        </div>
+                        <div className="flex gap-3">
+                            <button type="submit" disabled={savingPassword} className="rounded-lg bg-[#315f55] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{savingPassword ? "Saving..." : "Save Password"}</button>
+                            <button type="button" onClick={closePasswordForm} className="rounded-lg border px-4 py-2 text-sm font-semibold">Cancel</button>
+                        </div>
+                    </form>
+                </ContentCard>
+            )}
+
             <ContentCard>
                 <div className="overflow-x-auto">
                     <Table>
@@ -148,6 +211,14 @@ export default function UsersPage() {
                                             className="text-xs font-semibold px-3 py-1 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
                                         >
                                             {u.is_active ? "Deactivate" : "Activate"}
+                                        </button>
+                                        <button type="button" onClick={() => {
+                                            setPasswordNotice("");
+                                            setPasswordTarget({ id: u.id, name: u.name });
+                                            setNewPassword("");
+                                            setConfirmPassword("");
+                                        }} className="ml-2 rounded-full bg-[#e7f5ec] px-3 py-1 text-xs font-semibold text-[#315f55] hover:bg-[#cfe9dd]">
+                                            Change Password
                                         </button>
                                     </Td>
                                 </tr>
