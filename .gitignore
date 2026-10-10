@@ -19,3 +19,8 @@ backend/storage/
 backend/test-storage/
 service-account.json
 google-service-account.json
+
+# Local Test Assets
+backend/local_pg_data/
+backend/scripts/create_test_users.py
+docker-compose-test.yml
