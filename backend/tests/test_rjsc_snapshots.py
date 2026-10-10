@@ -48,4 +48,16 @@ def test_rjsc_snapshot_is_append_only_and_verification_explicit(db_session):
             "fields": {"registration_no": "C-12345"}
         })
         assert invalid.status_code == 422
+        oversized = api.post(url, json={
+            "source_reference": "RJSC Ref-003",
+            "checked_on": str(date.today()),
+            "fields": {"registered_office": "A" * 1001}
+        })
+        assert oversized.status_code == 422
+        empty_fields = api.post(url, json={
+            "source_reference": "RJSC Ref-004",
+            "checked_on": str(date.today()),
+            "fields": {"registration_no": " "}
+        })
+        assert empty_fields.status_code == 422
         assert db_session.query(RjscSnapshot).filter_by(client_id=client.id).count() == 2
