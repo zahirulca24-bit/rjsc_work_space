@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   Clock3,
   LogOut,
+  ClipboardCheck,
 } from "lucide-react";
 
 const RAW_GROUPS = [
@@ -36,6 +37,7 @@ const RAW_GROUPS = [
     label: "Overview",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { label: "App Testing Feedback", href: "/pilot-feedback", icon: ClipboardCheck },
     ],
   },
   {
