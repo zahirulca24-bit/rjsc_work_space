@@ -64,6 +64,20 @@ export const addClientHistory = async (id: string, type: string, data: any) => {
     return res.json();
 };
 
+
+export const updateClientHistory = async (clientId: string, type: string, recordId: string, data: Record<string, unknown>) => {
+    const res = await fetchApi(`${API_BASE}/api/clients/${clientId}/${type}/${recordId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(typeof error.detail === "string" ? error.detail : "Failed to update corporate history record");
+    }
+    return res.json();
+};
+
 // Import Bulk
 export const bulkImportClients = async (clients: any[]) => {
     // We didn't create a bulk import endpoint. We will just loop.
