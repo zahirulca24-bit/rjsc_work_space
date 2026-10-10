@@ -13,3 +13,5 @@ from app.models.audit import AuditLog
 from app.models.user import User, RoleEnum
 
 from app.models.ai import DocumentAIAnalysis
+
+from app.models.pilot_feedback import PilotFeedback
