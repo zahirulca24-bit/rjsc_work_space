@@ -125,11 +125,11 @@ export default function ClientProfilePage() {
       }));
       hist.agm_history?.forEach((e:any) => mappedEvents.push({
         id: e.id, clientId: e.client_id, type: 'AGM', financialYear: e.financial_year,
-        agmDate: e.agm_date, status: e.status
+        agmDate: e.agm_date || '', status: e.status, sourceDocument: e.source_document, notes: e.notes
       }));
       hist.annual_returns?.forEach((e:any) => mappedEvents.push({
         id: e.id, clientId: e.client_id, type: 'ANNUAL_RETURN', financialYear: e.financial_year,
-        filedDate: e.filed_date || '', dueDate: '', filingStatus: 'PENDING'
+        filedDate: e.filed_date || '', dueDate: e.due_date || '', filingStatus: e.filing_status || 'PENDING', acknowledgementReference: e.acknowledgement_reference, notes: e.notes
       }));
       hist.filings?.forEach((e:any) => mappedEvents.push({
         id: e.id, clientId: e.client_id, type: 'RJSC_FILING', serviceType: e.service_type,
