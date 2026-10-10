@@ -16,38 +16,75 @@ import {
   Users,
 } from "lucide-react";
 
-const recentWorks = [
-  {
-    id: "DEMO-001",
-    client: "SILVEE AND SINTHEE TRAVEL AGENCY LTD.",
-    service: "Annual Return / Returns Filing",
-    assigned: "Noyon",
-    status: "In Progress",
-    dueDate: "15-Oct-2026",
-    bill: 5500,
-    due: 2500,
-  },
-];
+import { useEffect, useMemo, useState } from "react";
+import { getClients } from "@/lib/api/clients";
+import { getWorks } from "@/lib/api/works";
+import { getFinanceSummary } from "@/lib/api/analytics";
 
-const reviewQueue = [
-  {
-    title: "Annual Return Working Paper",
-    client: "SILVEE AND SINTHEE TRAVEL AGENCY LTD.",
-    owner: "Noyon",
-    state: "Manager Review",
-  },
-  {
-    title: "AGM Minutes / Resolution",
-    client: "SILVEE AND SINTHEE TRAVEL AGENCY LTD.",
-    owner: "Noyon",
-    state: "Missing Document",
-  },
-];
+type Client = { id: string; legal_name: string; status: string };
+type Work = {
+  id: string;
+  work_code: string | null;
+  client_id: string;
+  service_id: string;
+  assigned_to: string | null;
+  status: string;
+  due_date: string | null;
+  total_bill: string | number | null;
+  created_at: string;
+};
+type Finance = { billed: string; collection: string; outstanding: string };
+const money = (n: number) => "৳ " + n.toLocaleString("en-BD", { maximumFractionDigits: 2 });
+const amount = (v: unknown) => Number.isFinite(Number(v)) ? Number(v) : 0;
+const completed = (s: string) => ["COMPLETED", "CANCELLED", "CANCELED"].includes(s.toUpperCase());
+const dateLabel = (v: string | null) => v ? new Date(v).toLocaleDateString("en-GB") : "—";
 
 export default function DashboardView() {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [works, setWorks] = useState<Work[]>([]);
+  const [finance, setFinance] = useState<Finance | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const reload = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [clientRows, workRows, financeSummary] = await Promise.all([
+        getClients(), getWorks(), getFinanceSummary()
+      ]);
+      if (!Array.isArray(clientRows) || !Array.isArray(workRows)) throw new Error("Invalid dashboard response");
+      setClients(clientRows);
+      setWorks(workRows);
+      setFinance(financeSummary);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load dashboard");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void reload(); }, []);
+
+  const openWorks = useMemo(() => works.filter(w => !completed(w.status)), [works]);
+  const recentWorks = works.slice(0, 8);
+  const clientNames = useMemo(() => new Map(clients.map(c => [c.id, c.legal_name])), [clients]);
+  const activeClients = clients.filter(c => c.status.toUpperCase() === "ACTIVE").length;
+  const completedWorks = works.filter(w => w.status.toUpperCase() === "COMPLETED").length;
+  const billed = amount(finance?.billed);
+  const collected = amount(finance?.collection);
+  const outstanding = amount(finance?.outstanding);
+  const collectionRate = billed > 0 ? Math.max(0, Math.min(100, collected / billed * 100)) : 0;
+  const upcoming = openWorks.filter(w => w.due_date && new Date(w.due_date).getTime() >= Date.now()).sort((a,b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())[0];
+  const attentionWorks = openWorks.filter(w => w.due_date && new Date(w.due_date).getTime() < Date.now()).slice(0, 5);
+
   return (
+
     <div className="rjsc-dashboard space-y-4">
 
+      {loading && <div role="status" className="rounded-xl bg-[#eef7f3] px-4 py-3 text-sm text-[#315f55]">Loading real dashboard data...</div>}
+      {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span>Dashboard could not load: {error}. Previous results may be outdated.</span><button type="button" onClick={() => void reload()} className="font-bold underline">Retry</button></div>}
+      {!loading && !error && works.length === 0 && clients.length === 0 && <div className="rounded-xl border border-[#d9e3df] bg-white px-4 py-3 text-sm text-[#47765a]">No clients or works yet. Add a client to begin.</div>}
       {/* HERO */}
       <section className="dashboard-hero overflow-hidden rounded-[26px] border border-[#eadfca]">
         <div className="grid gap-5 p-5 xl:grid-cols-[1.15fr_.85fr] xl:p-6">
@@ -91,29 +128,29 @@ export default function DashboardView() {
           <div className="grid grid-cols-2 gap-3">
             <HeroTile
               tone="coral"
-              value="1"
+              value={loading ? "…" : String(openWorks.length)}
               label="Open Work"
               icon={<BriefcaseBusiness size={18} />}
             />
 
             <HeroTile
               tone="aqua"
-              value="2"
+              value={loading ? "…" : String(activeClients)}
               label="Active Clients"
               icon={<Users size={18} />}
             />
 
             <HeroTile
               tone="yellow"
-              value="৳ 2,500"
+              value={loading ? "…" : money(outstanding)}
               label="Outstanding"
               icon={<CircleDollarSign size={18} />}
             />
 
             <HeroTile
               tone="sage"
-              value="40%"
-              label="Document Progress"
+              value={loading ? "…" : String(completedWorks)}
+              label="Completed Jobs"
               icon={<FileText size={18} />}
             />
           </div>
@@ -126,7 +163,7 @@ export default function DashboardView() {
           tone="sage"
           icon={<Building2 size={18} />}
           label="Active Clients"
-          value="2"
+          value={loading ? "…" : String(activeClients)}
           sub="Client master"
         />
 
@@ -134,23 +171,23 @@ export default function DashboardView() {
           tone="aqua"
           icon={<BriefcaseBusiness size={18} />}
           label="Open Jobs"
-          value="1"
-          sub="1 in progress"
+          value={loading ? "…" : String(openWorks.length)}
+          sub="Not completed/cancelled"
         />
 
         <Kpi
           tone="yellow"
           icon={<ReceiptText size={18} />}
           label="Total Bill"
-          value="৳ 5,500"
-          sub="Current engagements"
+          value={loading ? "…" : money(billed)}
+          sub="Issued invoices"
         />
 
         <Kpi
           tone="coral"
           icon={<CircleDollarSign size={18} />}
           label="Client Due"
-          value="৳ 2,500"
+          value={loading ? "…" : money(outstanding)}
           sub="Follow-up required"
         />
       </section>
@@ -190,8 +227,8 @@ export default function DashboardView() {
                   <Th>Assigned</Th>
                   <Th>Status</Th>
                   <Th>Due Date</Th>
-                  <Th>Bill</Th>
-                  <Th>Due</Th>
+                  <Th>Est. Work Bill</Th>
+                  <Th>Billing Status</Th>
                 </tr>
               </thead>
 
@@ -203,20 +240,20 @@ export default function DashboardView() {
                   >
                     <td className="px-5 py-4">
                       <div className="font-black text-[#26362f]">
-                        {work.id}
+                        {work.work_code || work.id.slice(0, 8)}
                       </div>
                     </td>
 
                     <td className="max-w-[240px] px-5 py-4 text-sm font-semibold text-[#343530]">
-                      {work.client}
+                      {clientNames.get(work.client_id) || "Unknown client"}
                     </td>
 
                     <td className="px-5 py-4 text-sm text-[#62655f]">
-                      {work.service}
+                      {work.service_id}
                     </td>
 
                     <td className="px-5 py-4 text-sm text-[#62655f]">
-                      {work.assigned}
+                      {work.assigned_to || "Unassigned"}
                     </td>
 
                     <td className="px-5 py-4">
@@ -226,18 +263,19 @@ export default function DashboardView() {
                     </td>
 
                     <td className="px-5 py-4 text-sm font-semibold text-[#555852]">
-                      {work.dueDate}
+                      {dateLabel(work.due_date)}
                     </td>
 
                     <td className="px-5 py-4 text-sm font-bold text-[#363832]">
-                      ৳ {work.bill.toLocaleString()}
+                      {work.total_bill === null ? "Not estimated" : money(amount(work.total_bill))}
                     </td>
 
                     <td className="px-5 py-4 text-sm font-black text-[#d36551]">
-                      ৳ {work.due.toLocaleString()}
+                      <span className="text-xs text-[#75807a]">See Billing</span>
                     </td>
                   </tr>
                 ))}
+                {recentWorks.length === 0 && <tr><td colSpan={8} className="px-5 py-8 text-center text-sm text-[#75807a]">No works recorded yet.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -254,11 +292,11 @@ export default function DashboardView() {
                 </div>
 
                 <div className="mt-2 text-[30px] font-black tracking-tight text-[#244434]">
-                  ৳ 3,000
+                  {loading ? "…" : money(collected)}
                 </div>
 
                 <div className="mt-1 text-xs text-[#65786d]">
-                  54.5% of billed amount collected
+                  {billed > 0 ? collectionRate.toFixed(1) + "% of issued invoices collected" : "No issued invoices yet"}
                 </div>
               </div>
 
@@ -268,7 +306,7 @@ export default function DashboardView() {
             </div>
 
             <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-white/70">
-              <div className="h-full w-[55%] rounded-full bg-[#5b9f75]" />
+              <div className="h-full rounded-full bg-[#5b9f75]" style={{ width: collectionRate + "%" }} />
             </div>
           </div>
 
@@ -280,15 +318,15 @@ export default function DashboardView() {
 
               <div>
                 <div className="font-black text-[#6c342a]">
-                  Due this week
+                  Next Due Work
                 </div>
 
                 <div className="mt-1 text-sm text-[#8b5c53]">
-                  DEMO-001 · Annual Return
+                  {upcoming ? (upcoming.work_code || upcoming.id.slice(0,8)) + " · " + upcoming.service_id : "No upcoming work"}
                 </div>
 
                 <div className="mt-2 text-xs font-bold text-[#c95e4b]">
-                  Due 15-Oct-2026
+                  {upcoming ? "Due " + dateLabel(upcoming.due_date) : "No date scheduled"}
                 </div>
               </div>
             </div>
@@ -313,53 +351,19 @@ export default function DashboardView() {
             </div>
 
             <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-[#4d7662]">
-              {reviewQueue.length} items
+              {attentionWorks.length} overdue
             </span>
           </div>
 
           <div className="grid gap-3">
-            {reviewQueue.map((item, index) => (
-              <div
-                key={item.title}
-                className="flex items-center justify-between gap-4 rounded-2xl border border-[#d4e4de] bg-white/80 p-4"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div
-                    className={
-                      index === 0
-                        ? "grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#f7c928] text-[#5f5013]"
-                        : "grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#eb7b67] text-white"
-                    }
-                  >
-                    {index === 0 ? (
-                      <CheckCircle2 size={18} />
-                    ) : (
-                      <FileText size={18} />
-                    )}
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-black text-[#2b322e]">
-                      {item.title}
-                    </div>
-
-                    <div className="mt-1 truncate text-xs text-[#75807a]">
-                      {item.client}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <div className="text-xs font-black text-[#4f655a]">
-                    {item.state}
-                  </div>
-
-                  <div className="mt-1 text-[11px] text-[#829087]">
-                    {item.owner}
-                  </div>
-                </div>
-              </div>
+            {attentionWorks.map(work => (
+              <Link key={work.id} href="/work-register" className="rounded-2xl border border-[#d4e4de] bg-white/80 p-4">
+                <div className="font-bold text-sm text-[#2b322e]">{work.work_code || work.id.slice(0,8)} · {work.service_id}</div>
+                <div className="mt-1 text-xs text-[#75807a]">{clientNames.get(work.client_id) || "Unknown client"}</div>
+                <div className="mt-2 text-xs font-bold text-[#c95e4b]">Overdue: {dateLabel(work.due_date)}</div>
+              </Link>
             ))}
+            {attentionWorks.length === 0 && <p className="text-sm text-[#75807a]">No overdue works.</p>}
           </div>
         </div>
 
