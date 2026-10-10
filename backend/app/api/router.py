@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends
 from app.api.deps import get_current_user
-from app.api.routes import status, health, clients, works, documents, storage, invoices, transactions, analytics, auth, users, tasks, audit, ai_documents
+from app.api.routes import status, health, clients, works, documents, storage, invoices, transactions, analytics, auth, users, tasks, audit, ai_documents, pilot_feedback
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(pilot_feedback.router, prefix="/pilot-feedback", tags=["pilot-feedback"])
 
 # Protected routes
 protected = [Depends(get_current_user)]
