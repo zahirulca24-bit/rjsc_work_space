@@ -12,6 +12,7 @@ import { PageHeader, ContentCard, StatCard, StatusBadge, Table, Th, Td, EmptySta
 import { Building2, FolderOpen, AlertTriangle, FileText, BriefcaseBusiness } from "lucide-react";
 import { HistoryRecordModal } from "./HistoryRecordModal";
 import ComplianceReview from "./ComplianceReview";
+import RjscRecordComparison from "./RjscRecordComparison";
 import { EntityType } from "@/lib/rjsc/types";
 
 export default function ClientProfilePage() {
@@ -230,6 +231,8 @@ export default function ClientProfilePage() {
       )}
 
       {tab === "Overview" && <ComplianceReview events={events} />}
+
+      {tab === "Overview" && <RjscRecordComparison clientId={id} client={client} currentPosition={currentPosition} />}
 
       {tab === "Corporate History" && (
         <div className="flex gap-6">
