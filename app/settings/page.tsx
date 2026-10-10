@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 export default function SettingsPage() {
-  const [firmName, setFirmName] = useState("FAMES & R Chartered Accountants");
+  const [firmName, setFirmName] = useState("Zahir & Associate");
   const [department, setDepartment] = useState("RJSC Department");
   const [manager, setManager] = useState("Md. Zahirul Islam");
   const [defaultReviewer, setDefaultReviewer] = useState("Md. Zahirul Islam");
