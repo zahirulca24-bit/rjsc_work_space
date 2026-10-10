@@ -126,7 +126,7 @@ export default function RjscRecordComparison({ clientId, client, currentPosition
       <div className="overflow-x-auto">
         <table className="min-w-[670px] w-full text-left text-sm">
           <thead className="border-b border-[#d9e3df] text-xs font-bold uppercase text-[#44765b]">
-            <tr><th className="py-3 pr-3">Field</th><th className="py-3 pr-3">Office Record</th><th className="py-3 pr-3">RJSC Verified Record</th><th className="py-3">Reconciliation</th></tr>
+            <tr><th className="py-3 pr-3">Field</th><th className="py-3 pr-3">Office Record</th><th className="py-3 pr-3">RJSC Source Value (manual entry)</th><th className="py-3">Reconciliation</th></tr>
           </thead>
           <tbody>
             {rows.map(row => (
