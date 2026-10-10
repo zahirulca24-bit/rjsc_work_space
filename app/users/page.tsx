@@ -73,7 +73,7 @@ export default function UsersPage() {
 
     return (
         <div className="p-4 md:p-8 space-y-6">
-            <div className="flex justify-between items-center"><PageHeader title="User Management" subtitle="Manage office staff, roles, and access permissions." icon={<UsersIcon />} /><PrimaryButton onClick={() => setIsAddMode(true)}>Add User</PrimaryButton></div>
+            <div className="flex justify-between items-center"><PageHeader title="User Management" subtitle="Manage office staff, roles, and access permissions." icon={UsersIcon} /><PrimaryButton onClick={() => setIsAddMode(true)}>Add User</PrimaryButton></div>
 
             {isAddMode && (
                 <ContentCard className="mb-6 p-4 border border-[#315f55]/20 bg-white shadow-sm">
