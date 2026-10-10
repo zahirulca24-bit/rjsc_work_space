@@ -208,9 +208,11 @@ async def download_document(document_id: UUID4, db: Session = Depends(get_db)):
     if not doc:
       raise HTTPException(status_code=404, detail="Document not found")
 
-    if doc.storage_provider != "local" or not doc.storage_reference:
+    if not doc.storage_reference or doc.storage_provider not in ("local", "google_drive"):
       raise HTTPException(status_code=404, detail="Document file not available")
 
+    # Use the provider recorded on the document, not the current default.
+    # Google Drive and local storage both expose exists() / get_file_stream().
     provider = get_storage_provider(doc.storage_provider)
 
     from fastapi.responses import StreamingResponse
