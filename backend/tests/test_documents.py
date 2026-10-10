@@ -174,6 +174,40 @@ def test_download_valid(client):
     assert res.content == content
     assert "/" not in res.json() if "application/json" in res.headers.get("content-type", "") else True
 
+
+def test_download_google_drive_document(client, db_session, monkeypatch):
+    """The download route must use the stored Drive provider, not local-only storage."""
+    import uuid
+    from app.models.document import Document
+    from app.api.routes import documents as document_routes
+
+    payload = b"sample drive content"
+    uploaded = upload_file(client, ".pdf", "application/pdf", content=b"drive fixture 20261011").json()
+    doc = db_session.query(Document).filter_by(id=uuid.UUID(uploaded["id"])).first()
+    doc.storage_provider = "google_drive"
+    doc.storage_reference = "mock-drive-file-id"
+    db_session.commit()
+
+    class FakeDrive:
+        async def exists(self, reference):
+            assert reference == "mock-drive-file-id"
+            return True
+
+        async def get_file_stream(self, reference):
+            assert reference == "mock-drive-file-id"
+            yield payload
+
+    def fake_provider(name):
+        assert name == "google_drive"
+        return FakeDrive()
+
+    monkeypatch.setattr(document_routes, "get_storage_provider", fake_provider)
+    response = client.get(f"/api/documents/{uploaded['id']}/download")
+    assert response.status_code == 200
+    assert response.content == payload
+    assert "attachment" in response.headers["content-disposition"]
+
+
 def test_download_missing_file(client, db_session):
     import uuid
     doc = upload_file(client, ".pdf", "application/pdf", content=b"missing soon").json()
