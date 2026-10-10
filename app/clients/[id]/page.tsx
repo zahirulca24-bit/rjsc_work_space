@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { CorporateEvent } from "@/lib/clients/history-types";
 import { buildTimeline } from "@/lib/clients/history-utils";
 import { Badge, Stat, PrimaryButton } from "@/components/UI";
-import { getClient, getClientCurrentPosition, getClientHistory, addClientHistory } from "@/lib/api/clients";
+import { getClient, getClientCurrentPosition, getClientHistory, addClientHistory, updateClientHistory } from "@/lib/api/clients";
 import { getWorks } from "@/lib/api/works";
 import { PageHeader, ContentCard, StatCard, StatusBadge, Table, Th, Td, EmptyState } from "@/components/SharedUI";
 import { Building2, FolderOpen, AlertTriangle, FileText, BriefcaseBusiness } from "lucide-react";
@@ -81,7 +81,15 @@ export default function ClientProfilePage() {
         break;
     }
     // A history record is written only after explicit staff Save.
-    await addClientHistory(id, route, body);
+    if (editEvent) {
+      // Edit the original persisted record; never create a second history entry.
+      if (editEvent.id !== event.id || editEvent.type !== event.type) {
+        throw new Error("The selected record changed. Reopen it and try again.");
+      }
+      await updateClientHistory(id, route, editEvent.id, body);
+    } else {
+      await addClientHistory(id, route, body);
+    }
     setIsModalOpen(false);
     setEditEvent(null);
     await fetchAllData();
@@ -134,11 +142,11 @@ export default function ClientProfilePage() {
       }));
       hist.filings?.forEach((e:any) => mappedEvents.push({
         id: e.id, clientId: e.client_id, type: 'RJSC_FILING', serviceType: e.service_type,
-        submissionDate: e.submission_date || '', approvalDate: e.approval_date, status: e.status, reference: e.reference, formName: e.service_type, effectiveDate: ''
+        submissionDate: e.submission_date || '', approvalDate: e.approval_date, status: e.status, reference: e.reference, formName: e.form_name || e.service_type, effectiveDate: e.effective_date || '', notes: e.notes
       }));
       hist.compliance_issues?.forEach((e:any) => mappedEvents.push({
         id: e.id, clientId: e.client_id, type: 'COMPLIANCE_ISSUE', title: e.title,
-        status: e.status, dueDate: e.due_date || '', category: 'GENERAL', identifiedDate: '', severity: 'MEDIUM', resolutionDate: null
+        status: e.status, dueDate: e.due_date || '', category: e.category || 'GENERAL', identifiedDate: e.identified_date || '', severity: e.severity || 'MEDIUM', resolutionDate: e.resolution_date || null, notes: e.notes
       }));
 
       setEvents(mappedEvents);
@@ -257,7 +265,7 @@ export default function ClientProfilePage() {
                                 <span className="text-xs font-bold text-[#6c7671]">{ev.date}</span>
                               </div>
                               <p className="text-sm font-medium text-[#181818] mt-2">{ev.title || ev.notes || 'Recorded in system'}</p>
-                              <button className="mt-3 text-xs font-bold text-[#447a5d] opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setEditEvent(ev); setIsModalOpen(true); }}>Edit Record</button>
+                              <button className="mt-3 text-xs font-bold text-[#447a5d] opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setEditEvent(ev.originalEvent); setIsModalOpen(true); }}>Edit Record</button>
                         </div>
                       </div>
                     ))}
