@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import FloatingAssistant from "@/components/FloatingAssistant";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -29,7 +30,6 @@ import {
   CheckCircle2,
   Clock3,
   LogOut,
-  ClipboardCheck,
 } from "lucide-react";
 
 const RAW_GROUPS = [
@@ -37,7 +37,6 @@ const RAW_GROUPS = [
     label: "Overview",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { label: "App Testing Feedback", href: "/pilot-feedback", icon: ClipboardCheck },
     ],
   },
   {
@@ -487,6 +486,7 @@ export default function AppShell({
           <div className="app-content-inner">{children}</div>
         </div>
       </main>
+      {user && <FloatingAssistant />}
     </div>
   );
 }
