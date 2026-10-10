@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { listDocuments } from "@/lib/api/documents";
+import { listRjscSnapshots, saveRjscSnapshot, type RjscSnapshot } from "@/lib/api/rjsc-snapshots";
 
 type Props = {
   clientId: string;
@@ -13,35 +14,79 @@ type DocumentSummary = { id: string; category: string; document_name: string; st
 
 export default function RjscRecordComparison({ clientId, client, currentPosition }: Props) {
   const [docs, setDocs] = useState<DocumentSummary[]>([]);
+  const [snapshots, setSnapshots] = useState<RjscSnapshot[]>([]);
+  const [snapshotError, setSnapshotError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [sourceReference, setSourceReference] = useState("");
+  const [checkedOn, setCheckedOn] = useState("");
+  const [verified, setVerified] = useState(false);
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const fieldKeys = [
+    ["legal_name", "Legal Name"],
+    ["registration_no", "Registration No."],
+    ["incorporation_date", "Incorporation Date"],
+    ["registered_office", "Registered Office"],
+    ["current_directors", "Current Directors"],
+    ["authorized_capital", "Authorized Capital (BDT)"],
+    ["paid_up_capital", "Paid-up Capital (BDT)"]
+  ] as const;
+
+  const latest = snapshots[0];
+  const normalized = (value: unknown) => String(value ?? "").trim().replace(/[,৳\s]/g, "").toLowerCase();
+  const saveSnapshot = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSaving(true);
+    setSnapshotError("");
+    setSaveMessage("");
+    try {
+      const filtered = Object.fromEntries(Object.entries(fields).filter(([_, v]) => v.trim()));
+      await saveRjscSnapshot(clientId, {
+        source_reference: sourceReference.trim(), checked_on: checkedOn,
+        is_verified: verified, fields: filtered
+      });
+      setSnapshots(await listRjscSnapshots(clientId));
+      setFields({});
+      setSourceReference("");
+      setCheckedOn("");
+      setVerified(false);
+      setSaveMessage("New RJSC snapshot saved. Earlier snapshots remain in history.");
+    } catch (err: unknown) {
+      setSnapshotError(err instanceof Error ? err.message : "Unable to save snapshot");
+    } finally {
+      setSaving(false);
+    }
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
     setLoading(true);
-    listDocuments({ client_id: clientId })
-      .then(result => {
+    Promise.all([listDocuments({ client_id: clientId }), listRjscSnapshots(clientId)])
+      .then(([documents, storedSnapshots]) => {
         if (!active) return;
-        if (!Array.isArray(result)) throw new Error("Unexpected document response");
-        setDocs(result);
+        if (!Array.isArray(documents) || !Array.isArray(storedSnapshots)) throw new Error("Unexpected response");
+        setDocs(documents);
+        setSnapshots(storedSnapshots);
         setError("");
       })
-      .catch((err: unknown) => { if (active) setError(err instanceof Error ? err.message : "Unable to load documents"); })
+      .catch((err: unknown) => { if (active) setError(err instanceof Error ? err.message : "Unable to load sources"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [clientId]);
 
   const directors = (currentPosition?.current_directors || []).map((d: any) => d.full_name).filter(Boolean).join(", ");
   const rows = [
-    { label: "Legal Name", office: currentPosition?.current_legal_name || client?.legal_name },
-    { label: "Registration No.", office: client?.registration_no },
-    { label: "Incorporation Date", office: client?.incorporation_date },
-    { label: "Registered Office", office: currentPosition?.current_registered_office },
-    { label: "Current Directors", office: directors },
-    { label: "Authorized Capital", office: currentPosition?.authorized_capital == null ? null : "৳ " + Number(currentPosition.authorized_capital).toLocaleString("en-BD") },
-    { label: "Paid-up Capital", office: currentPosition?.paid_up_capital == null ? null : "৳ " + Number(currentPosition.paid_up_capital).toLocaleString("en-BD") },
-    { label: "Last recorded AGM", office: currentPosition?.last_agm?.agm_date ? currentPosition.last_agm.financial_year + " — " + currentPosition.last_agm.agm_date : null },
-    { label: "Last recorded Annual Return", office: currentPosition?.last_annual_return?.filed_date ? currentPosition.last_annual_return.financial_year + " — " + currentPosition.last_annual_return.filed_date : null }
+    { key: "legal_name", label: "Legal Name", office: currentPosition?.current_legal_name || client?.legal_name },
+    { key: "registration_no", label: "Registration No.", office: client?.registration_no },
+    { key: "incorporation_date", label: "Incorporation Date", office: client?.incorporation_date },
+    { key: "registered_office", label: "Registered Office", office: currentPosition?.current_registered_office },
+    { key: "current_directors", label: "Current Directors", office: directors },
+    { key: "authorized_capital", label: "Authorized Capital", office: currentPosition?.authorized_capital == null ? null : "৳ " + Number(currentPosition.authorized_capital).toLocaleString("en-BD") },
+    { key: "paid_up_capital", label: "Paid-up Capital", office: currentPosition?.paid_up_capital == null ? null : "৳ " + Number(currentPosition.paid_up_capital).toLocaleString("en-BD") },
+    { key: "agm_unavailable", label: "Last recorded AGM", office: currentPosition?.last_agm?.agm_date ? currentPosition.last_agm.financial_year + " — " + currentPosition.last_agm.agm_date : null },
+    { key: "return_unavailable", label: "Last recorded Annual Return", office: currentPosition?.last_annual_return?.filed_date ? currentPosition.last_annual_return.financial_year + " — " + currentPosition.last_annual_return.filed_date : null }
   ];
 
   const referenceDocs = docs.filter(d => ["CERTIFIED_COPY", "ACKNOWLEDGEMENT", "FORM_XII", "SCHEDULE_X", "INCORPORATION"].includes(d.category));
@@ -51,10 +96,33 @@ export default function RjscRecordComparison({ clientId, client, currentPosition
       <div>
         <h3 className="text-lg font-black text-[#22342d]">RJSC vs Office Record — Verification Worksheet</h3>
         <p className="mt-1 text-xs leading-5 text-[#6c7671]">
-          The Office column contains your saved client records. No independently verified RJSC data feed or structured RJSC snapshot is connected yet,
-          so this worksheet does not claim any fields match or differ. Compare against authenticated RJSC extracts before confirming a discrepancy.
+          The Office column uses saved client records. RJSC column uses only manually entered, source-linked snapshots;
+          this is not a live RJSC connection. Mismatch is shown only after staff explicitly marks the snapshot reviewed and verified.
         </p>
       </div>
+      <form onSubmit={saveSnapshot} className="space-y-3 rounded-xl border border-[#d9e3df] bg-white p-4">
+        <h4 className="font-bold text-[#315f55]">Record new RJSC source snapshot</h4>
+        <p className="text-xs text-[#6c7671]">Enter values from an authenticated RJSC extract, not from office history. Source reference and check date are required. Leave fields blank if the RJSC extract does not show them.</p>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="text-xs font-bold">RJSC source reference / extract ID
+            <input required minLength={3} maxLength={600} value={sourceReference} onChange={e => setSourceReference(e.target.value)} className="mt-1 block w-full rounded-lg border p-2 text-sm" placeholder="Document number / certified copy reference" />
+          </label>
+          <label className="text-xs font-bold">Date checked
+            <input required type="date" value={checkedOn} max={new Date().toISOString().slice(0,10)} onChange={e => setCheckedOn(e.target.value)} className="mt-1 block w-full rounded-lg border p-2 text-sm" />
+          </label>
+          {fieldKeys.map(([key, label]) => <label key={key} className="text-xs font-bold">{label}
+            <input value={fields[key] || ""} onChange={e => setFields(prev => ({ ...prev, [key]: e.target.value }))} className="mt-1 block w-full rounded-lg border p-2 text-sm" placeholder="Value on RJSC extract" />
+          </label>)}
+        </div>
+        <label className="flex items-start gap-2 text-xs text-[#4b4d47]">
+          <input type="checkbox" checked={verified} onChange={e => setVerified(e.target.checked)} />
+          I reviewed the cited RJSC source and confirm these entered values agree with it. Unchecked snapshots remain unverified.
+        </label>
+        {snapshotError && <p role="alert" className="text-xs text-red-700">{snapshotError}</p>}
+        {saveMessage && <p role="status" className="text-xs text-[#315f55]">{saveMessage}</p>}
+        <button type="submit" disabled={saving || loading} className="rounded-lg bg-[#447a5d] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{saving ? "Saving..." : "Save RJSC Snapshot"}</button>
+      </form>
+      {latest && <p className="text-xs text-[#6c7671]">Latest RJSC snapshot: {latest.checked_on}, source {latest.source_reference}, recorded by {latest.checked_by} — {latest.is_verified ? "Staff-verified" : "Draft / Unverified"}. {snapshots.length} snapshot(s) retained.</p>}
       <div className="overflow-x-auto">
         <table className="min-w-[670px] w-full text-left text-sm">
           <thead className="border-b border-[#d9e3df] text-xs font-bold uppercase text-[#44765b]">
@@ -65,8 +133,13 @@ export default function RjscRecordComparison({ clientId, client, currentPosition
               <tr key={row.label} className="border-b border-[#ece5d9]">
                 <td className="py-3 pr-3 font-semibold text-[#343530]">{row.label}</td>
                 <td className="py-3 pr-3">{row.office || "Not recorded"}</td>
-                <td className="py-3 pr-3 text-[#8b6a3d]">Not verified</td>
-                <td className="py-3 text-[#6c7671]">Source needed</td>
+                <td className="py-3 pr-3 text-[#8b6a3d]">{latest?.fields?.[row.key] || "Not verified"}</td>
+                <td className="py-3 text-[#6c7671]">{
+                  !latest?.is_verified ? "Source verification needed"
+                  : !latest.fields[row.key] ? "Not verified"
+                  : !row.office ? "Office record missing"
+                  : normalized(row.office) === normalized(latest.fields[row.key]) ? "Match (staff-reviewed)" : "Mismatch — review"
+                }</td>
               </tr>
             ))}
           </tbody>
