@@ -58,7 +58,6 @@ const RAW_GROUPS = [
     label: "Finance",
     items: [
       { label: "Services & Fees", href: "/services-fees", icon: BadgeDollarSign },
-      { label: "Fee Calculator", href: "/fee-calculator", icon: Calculator },
       { label: "Transactions", href: "/transactions", icon: ArrowLeftRight },
       { label: "Billing", href: "/billing", icon: ReceiptText },
     ],
