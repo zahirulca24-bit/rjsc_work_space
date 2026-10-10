@@ -228,7 +228,7 @@ export default function DashboardView() {
                   <Th>Status</Th>
                   <Th>Due Date</Th>
                   <Th>Est. Work Bill</Th>
-                  <Th>Due Date</Th>
+                  <Th>Billing Status</Th>
                 </tr>
               </thead>
 
@@ -271,7 +271,7 @@ export default function DashboardView() {
                     </td>
 
                     <td className="px-5 py-4 text-sm font-black text-[#d36551]">
-                      {dateLabel(work.due_date)}
+                      <span className="text-xs text-[#75807a]">See Billing</span>
                     </td>
                   </tr>
                 ))}
