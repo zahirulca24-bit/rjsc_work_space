@@ -26,6 +26,9 @@ export default function Page() {
   const [serviceId, setServiceId] = useState(services[4].id);
   const [entityType, setEntityType] = useState<EntityType>(EntityType.PRIVATE_COMPANY);
   const [documentCount, setDocumentCount] = useState(1);
+  const [periodFrom, setPeriodFrom] = useState("");
+  const [periodTo, setPeriodTo] = useState("");
+  const [professionalVatRate, setProfessionalVatRate] = useState(0);
   const [yearsLate, setYearsLate] = useState(0);
   const [authorizedCapital, setAuthorizedCapital] = useState(0);
   const [securedAmount, setSecuredAmount] = useState(0);
@@ -37,21 +40,32 @@ export default function Page() {
   const supportedEntities = selectedService.entityTypes;
   const actualEntity = supportedEntities.includes(entityType) ? entityType : supportedEntities[0];
   const rule = getFeeRule(serviceId, actualEntity);
+  const usesFilingYears = serviceId === "annual-return" || serviceId === "society-return-filing";
+  const fromYear = Number(periodFrom), toYear = Number(periodTo);
+  const validPeriod = periodFrom.length === 4 && periodTo.length === 4 &&
+    Number.isInteger(fromYear) && Number.isInteger(toYear) &&
+    fromYear >= 1900 && toYear >= fromYear && toYear <= new Date().getFullYear() + 1 &&
+    toYear - fromYear <= 50;
+  const filingYears = usesFilingYears && validPeriod ? toYear - fromYear + 1 : 1;
+  const quantity = documentCount * filingYears;
+  const professionalVat = Math.round(professionalFee * professionalVatRate) / 100;
   const calculation = useMemo(() => calculateRJSCFee({
     serviceId,
     entityType: actualEntity,
-    documentCount,
+    documentCount: quantity,
     yearsLate,
     authorizedCapital,
     securedAmount,
     certifiedCopyType
-  }), [serviceId, actualEntity, documentCount, yearsLate, authorizedCapital, securedAmount, certifiedCopyType]);
+  }), [serviceId, actualEntity, quantity, yearsLate, authorizedCapital, securedAmount, certifiedCopyType]);
 
   const needsReview = services.filter(s => s.sourceStatus === "NEEDS_SOURCE_REVIEW").length;
   const verified = services.length - needsReview;
   const configured = services.filter(s => s.entityTypes.some(e => getFeeRule(s.id, e) !== null)).length;
   const governmentFee = calculation?.totalFee ?? null;
-  const grandTotal = governmentFee === null ? null : governmentFee + professionalFee + otherCost;
+  const needsPeriod = usesFilingYears && !validPeriod;
+  const grandTotal = governmentFee === null || needsPeriod ? null : governmentFee + professionalFee + otherCost + professionalVat;
+  const existingGovtVat = calculation?.breakdown["VAT (15%)"] ?? 0;
   const inputNumber = (value: string) => Math.max(0, Number.isFinite(Number(value)) ? Number(value) : 0);
 
   return (
@@ -87,8 +101,22 @@ export default function Page() {
                 {supportedEntities.map(e => <option key={e} value={e}>{e.replaceAll("_", " ")}</option>)}
               </select>
             </label>
+            {usesFilingYears && (
+              <div className="rounded-xl border border-[#d9e3df] bg-[#eef7f3] p-3">
+                <p className="mb-2 text-sm font-bold text-[#315f55]">Filing Years (required)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-xs font-bold text-[#44765b]">From Year
+                    <input className={inputClass} type="number" min={1900} max={new Date().getFullYear() + 1} value={periodFrom} placeholder="2022" onChange={e => setPeriodFrom(e.target.value)} />
+                  </label>
+                  <label className="text-xs font-bold text-[#44765b]">To Year
+                    <input className={inputClass} type="number" min={1900} max={new Date().getFullYear() + 1} value={periodTo} placeholder="2025" onChange={e => setPeriodTo(e.target.value)} />
+                  </label>
+                </div>
+                <p className="mt-2 text-xs text-[#315f55]">{validPeriod ? filingYears + " filing year(s), total " + quantity + " forms/documents" : "Choose valid filing years. Confirm required forms for each year."}</p>
+              </div>
+            )}
             {(rule?.calculationType === "PER_DOCUMENT" || rule?.calculationType === "PER_FORM" || rule?.perDocumentFee) && (
-              <label className="block text-sm font-bold text-[#44765b]">Number of documents / forms
+              <label className="block text-sm font-bold text-[#44765b]">{usesFilingYears ? "Forms / documents per filing year" : "Number of documents / forms"}
                 <input className={inputClass} type="number" min={1} step={1} value={documentCount} onChange={e => setDocumentCount(Math.max(1, Math.floor(inputNumber(e.target.value))))} />
               </label>
             )}
@@ -122,6 +150,13 @@ export default function Page() {
                 <input className={inputClass} type="number" min={0} value={otherCost} onChange={e => setOtherCost(inputNumber(e.target.value))} />
               </label>
             </div>
+            <label className="block text-sm font-bold text-[#44765b]">VAT on Professional Fee
+              <select className={inputClass} value={professionalVatRate} onChange={e => setProfessionalVatRate(Number(e.target.value))}>
+                <option value={0}>Not applied / confirm applicability</option>
+                <option value={15}>15% (when applicable)</option>
+              </select>
+            </label>
+            <p className="text-xs leading-relaxed text-[#6c7671]">Professional VAT applies to professional fees only when relevant. Confirm tax treatment before issuing an invoice. VAT already included within an RJSC fee rule is not added again.</p>
             <p className="text-xs leading-relaxed text-[#6c7671]">This is a calculation preview only. It does not save a work, create an invoice or update accounting records.</p>
           </div>
         </ContentCard>
@@ -133,6 +168,7 @@ export default function Page() {
               Source review pending for this service. Confirm government charges using the current official RJSC schedule before quoting or filing.
             </div>
           )}
+          {needsPeriod && <div className="mb-4 rounded-xl bg-[#fff6ce] p-3 text-sm font-bold text-[#705514]">Select the filing years before using this total.</div>}
           {calculation ? (
             <>
               <div className="rounded-xl border border-[#b8dfc6] bg-[#e7f5ec] p-4">
@@ -153,7 +189,9 @@ export default function Page() {
           <div className="mt-4 space-y-3 border-t border-[#ded7c8] pt-4 text-sm">
             <div className="flex justify-between gap-3"><span>Professional Fee</span><strong>{bdt(professionalFee)}</strong></div>
             <div className="flex justify-between gap-3"><span>Other / Misc Cost</span><strong>{bdt(otherCost)}</strong></div>
-            <div className="flex justify-between gap-3 rounded-xl bg-[#dff1e7] p-4 text-[#294f48]"><span className="font-black">Grand Total</span><strong className="text-xl">{grandTotal === null ? "Manual review" : bdt(grandTotal)}</strong></div>
+            {existingGovtVat > 0 && <div className="flex justify-between gap-3 text-xs"><span>Government VAT (already included in Govt Fee)</span><strong>{bdt(existingGovtVat)}</strong></div>}
+            <div className="flex justify-between gap-3"><span>Professional VAT ({professionalVatRate}%)</span><strong>{bdt(professionalVat)}</strong></div>
+            <div className="flex justify-between gap-3 rounded-xl bg-[#dff1e7] p-4 text-[#294f48]"><span className="font-black">Grand Total</span><strong className="text-xl">{grandTotal === null ? (needsPeriod ? "Select years" : "Manual review") : bdt(grandTotal)}</strong></div>
             {calculation && <p className="break-words text-xs text-[#6c7671]">Government fee source: {calculation.sourceReference}</p>}
           </div>
         </ContentCard>
