@@ -1,5 +1,5 @@
 import { fetchApi } from "./fetchApi";
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const API_BASE = "";
 
 export async function listDocuments(params?: { client_id?: string; work_id?: string; category?: string; status?: string; search?: string }) {
   const query = new URLSearchParams();
