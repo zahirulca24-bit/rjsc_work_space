@@ -470,10 +470,10 @@ export default function AppShell({
                       System Settings
                     </Link>
 
-                    <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#83877f]">
-                      <UserRound size={16} />
-                      Profile & Logout after auth
-                    </div>
+                    <button onClick={logout} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#83877f] hover:bg-white/10 w-full text-left">
+                      <LogOut size={16} />
+                      Logout
+                    </button>
                   </div>
                 )}
               </div>
