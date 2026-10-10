@@ -88,11 +88,16 @@ class AgmHistoryBase(BaseModel):
     financial_year: str
     agm_date: Optional[date] = None
     status: str = "HELD"
+    source_document: Optional[str] = None
+    notes: Optional[str] = None
 
 class AnnualReturnBase(BaseModel):
     financial_year: str
     filed_date: Optional[date] = None
-    filing_status: str = "FILED"
+    filing_status: str = "PENDING"
+    due_date: Optional[date] = None
+    acknowledgement_reference: Optional[str] = None
+    notes: Optional[str] = None
 
 class FilingBase(BaseModel):
     service_type: str
