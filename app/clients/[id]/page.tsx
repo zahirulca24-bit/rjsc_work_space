@@ -294,87 +294,126 @@ function ClientFinancials({ client_id }: { client_id: string }) {
 function ClientDocuments({ client_id }: { client_id: string }) {
   const [docs, setDocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [fileKey, setFileKey] = useState(0);
   const [category, setCategory] = useState("OTHER");
+  const [documentDate, setDocumentDate] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const categories = [
-    "INCORPORATION", "MOA", "AOA", "FORM_XII", "FORM_VI",
-    "ANNUAL_RETURN", "AGM", "SHARE_TRANSFER", "DIRECTOR_CHANGE",
-    "REGISTERED_OFFICE", "CAPITAL", "MORTGAGE_CHARGE", "CERTIFIED_COPY",
-    "PAYMENT_CHALLAN", "ACKNOWLEDGEMENT", "BOARD_RESOLUTION",
-    "NID_PASSPORT", "TIN_BIN", "OTHER"
+    { value: "INCORPORATION", label: "Certificate of Incorporation" },
+    { value: "MOA", label: "Memorandum of Association" },
+    { value: "AOA", label: "Articles of Association" },
+    { value: "FORM_XII", label: "Form XII — Directors" },
+    { value: "SCHEDULE_X", label: "Schedule X — Annual Return" },
+    { value: "FORM_VI", label: "Form VI — Registered Office" },
+    { value: "ANNUAL_RETURN", label: "Annual Return — Other" },
+    { value: "AUDIT_REPORT", label: "Signed Audit Report / Accounts" },
+    { value: "DVC", label: "ICAB DVC / Audit Verification" },
+    { value: "AGM", label: "AGM Notice / Minutes" },
+    { value: "SHARE_TRANSFER", label: "Share Transfer" },
+    { value: "DIRECTOR_CHANGE", label: "Director Change" },
+    { value: "REGISTERED_OFFICE", label: "Registered Office" },
+    { value: "CAPITAL", label: "Share Capital" },
+    { value: "MORTGAGE_CHARGE", label: "Mortgage / Charge" },
+    { value: "CERTIFIED_COPY", label: "RJSC Certified Copy" },
+    { value: "PAYMENT_CHALLAN", label: "Payment Challan" },
+    { value: "ACKNOWLEDGEMENT", label: "RJSC Acknowledgement" },
+    { value: "BOARD_RESOLUTION", label: "Board Resolution" },
+    { value: "COURT_ORDER", label: "Court / Registrar Order" },
+    { value: "NID_PASSPORT", label: "NID / Passport" },
+    { value: "TIN_BIN", label: "TIN / BIN" },
+    { value: "OTHER", label: "Other Document" }
   ];
 
   const fetchDocs = async () => {
     setLoading(true);
     try {
       const { listDocuments } = await import("@/lib/api/documents");
-      const data = await listDocuments({ client_id });
-      setDocs(data);
+      setDocs(await listDocuments({ client_id }));
+      setError("");
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message || "Could not load documents");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  useEffect(() => {
-    fetchDocs();
-  }, [client_id]);
+  useEffect(() => { void fetchDocs(); }, [client_id]);
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) return;
+    if (!file || uploading) return;
+    setUploading(true);
     setError("");
+    setSuccess("");
     try {
-      const { uploadDocument } = await import("@/lib/api/documents");
-      await uploadDocument(file, category, client_id, undefined, undefined, notes);
+      const { uploadDocument, listDocuments } = await import("@/lib/api/documents");
+      await uploadDocument(file, category, client_id, undefined, documentDate || undefined, notes.trim() || undefined);
+      const refreshed = await listDocuments({ client_id });
+      setDocs(refreshed);
       setFile(null);
+      setFileKey(k => k + 1);
       setCategory("OTHER");
+      setDocumentDate("");
       setNotes("");
-      fetchDocs();
+      setSuccess("Document uploaded and linked to this client.");
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message || "Upload failed");
+    } finally {
+      setUploading(false);
     }
   };
-
-  if (loading) return <div className="text-sm text-slate-500">Loading documents...</div>;
 
   return (
     <div className="space-y-6">
       <form onSubmit={handleUpload} className="bg-[#fffdf7] p-4 rounded-xl border border-[#ece5d9]">
-        <div className="font-black text-[#181818] mb-4">Upload Document</div>
-        {error && <div className="text-[#a03c2a] text-sm font-bold mb-3">{error}</div>}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-          <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="text-sm border border-[#d9e3df] p-2 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#79b993]" />
-          <select value={category} onChange={e => setCategory(e.target.value)} className="text-sm border border-[#d9e3df] p-2 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#79b993]">
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <input type="text" placeholder="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} className="text-sm border border-[#d9e3df] p-2 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#79b993]" />
+        <h3 className="font-black text-[#181818] mb-2">Client Legal Document Intake</h3>
+        <p className="mb-4 text-xs text-[#6c7671]">Attach original legal papers, RJSC certified copies and supporting evidence. Document date is optional and should come from the document itself; do not use upload date as an AGM or filing date.</p>
+        {error && <div role="alert" className="text-[#a03c2a] text-sm font-bold mb-3">{error}</div>}
+        {success && <div role="status" className="text-[#315f55] text-sm font-bold mb-3">{success}</div>}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          <label className="text-xs font-bold text-[#44765b]">Document File
+            <input key={fileKey} type="file" accept=".pdf,.docx,.xlsx,.xls,.csv,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} className="mt-1 w-full text-sm border border-[#d9e3df] p-2 rounded-xl bg-white" />
+          </label>
+          <label className="text-xs font-bold text-[#44765b]">Document Category
+            <select value={category} onChange={e => setCategory(e.target.value)} className="mt-1 w-full text-sm border border-[#d9e3df] p-2 rounded-xl bg-white">
+              {categories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </label>
+          <label className="text-xs font-bold text-[#44765b]">Document Date (optional)
+            <input type="date" value={documentDate} onChange={e => setDocumentDate(e.target.value)} className="mt-1 w-full text-sm border border-[#d9e3df] p-2 rounded-xl bg-white" />
+          </label>
+          <label className="text-xs font-bold text-[#44765b]">Source / Notes (optional)
+            <input type="text" placeholder="Client copy, RJSC certified copy, audit period..." value={notes} onChange={e => setNotes(e.target.value)} className="mt-1 w-full text-sm border border-[#d9e3df] p-2 rounded-xl bg-white" />
+          </label>
         </div>
-        <button type="submit" disabled={!file} className="bg-[#447a5d] text-white px-5 py-2 rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-[#396a50] transition">Upload Document</button>
+        <button type="submit" disabled={!file || uploading} className="bg-[#447a5d] text-white px-5 py-2 rounded-xl text-sm font-bold disabled:opacity-50 hover:bg-[#396a50] transition">{uploading ? "Uploading..." : "Upload to Client"}</button>
       </form>
 
-      {docs.length === 0 ? (
-        <p className="text-sm font-bold text-[#6c7671] italic text-center py-6">No client documents recorded.</p>
+      {loading ? (
+        <p className="text-sm text-slate-500">Loading client documents...</p>
+      ) : docs.length === 0 ? (
+        <p className="text-sm font-bold text-[#6c7671] italic text-center py-6">No client documents recorded yet.</p>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {docs.map(doc => {
-            const url = ("") + "/api/documents/" + doc.id + "/download";
-            return (
-              <div key={doc.id} className="p-3 bg-white rounded-xl border border-[#d9e3df] shadow-sm flex justify-between items-center text-sm group">
-                <div className="truncate flex items-center gap-3">
-                  <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#e7f5ec] text-[#44765b] shrink-0"><FileText size={16}/></div>
-                  <div className="truncate">
-                    <div className="font-bold text-[#181818] truncate" title={doc.document_name}>{doc.document_name}</div>
-                    <div className="text-[#6c7671] text-[10px] uppercase font-bold tracking-wider mt-1">{doc.category}</div>
-                  </div>
+          {docs.map(doc => (
+            <div key={doc.id} className="p-3 bg-white rounded-xl border border-[#d9e3df] shadow-sm flex justify-between items-center text-sm group">
+              <div className="truncate flex items-center gap-3">
+                <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#e7f5ec] text-[#44765b] shrink-0"><FileText size={16}/></div>
+                <div className="truncate">
+                  <div className="font-bold text-[#181818] truncate" title={doc.document_name}>{doc.document_name}</div>
+                  <div className="text-[#6c7671] text-[10px] uppercase font-bold tracking-wider mt-1">{categories.find(c => c.value === doc.category)?.label || doc.category}</div>
+                  {doc.document_date && <div className="text-[10px] text-[#6c7671]">Document date: {doc.document_date}</div>}
+                  {doc.notes && <div className="text-[10px] text-[#6c7671] truncate" title={doc.notes}>{doc.notes}</div>}
                 </div>
-                <a href={url} target="_blank" rel="noreferrer" className="ml-3 px-3 py-1.5 bg-[#eef2f0] hover:bg-[#d9e3df] rounded-lg text-xs font-bold text-[#4b4d47] transition">Download</a>
               </div>
-            );
-          })}
+              <a href={`/api/documents/${doc.id}/download`} target="_blank" rel="noreferrer" className="ml-3 px-3 py-1.5 bg-[#eef2f0] hover:bg-[#d9e3df] rounded-lg text-xs font-bold text-[#4b4d47] transition">Download</a>
+            </div>
+          ))}
         </div>
       )}
     </div>
