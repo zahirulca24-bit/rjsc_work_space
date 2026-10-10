@@ -43,7 +43,10 @@ def create_or_update(model, client_id, db, data, record_id=None):
         if not record or record.client_id != client_id:
             raise HTTPException(status_code=404, detail="Record not found")
         for k, v in data.items():
-            if v is not None:
+            column = model.__table__.columns.get(k)
+            # Explicit null clears optional historical dates/notes on edit,
+            # e.g. changing a recorded AGM from HELD to NOT_HELD.
+            if v is not None or (column is not None and column.nullable):
                 setattr(record, k, v)
     else:
         record = model(client_id=client_id, **data)
