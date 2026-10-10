@@ -11,6 +11,7 @@ import { getWorks } from "@/lib/api/works";
 import { PageHeader, ContentCard, StatCard, StatusBadge, Table, Th, Td, EmptyState } from "@/components/SharedUI";
 import { Building2, FolderOpen, AlertTriangle, FileText, BriefcaseBusiness } from "lucide-react";
 import { HistoryRecordModal } from "./HistoryRecordModal";
+import ComplianceReview from "./ComplianceReview";
 import { EntityType } from "@/lib/rjsc/types";
 
 export default function ClientProfilePage() {
@@ -219,6 +220,8 @@ export default function ClientProfilePage() {
           </div>
         </ContentCard>
       )}
+
+      {tab === "Overview" && <ComplianceReview events={events} />}
 
       {tab === "Corporate History" && (
         <div className="flex gap-6">
