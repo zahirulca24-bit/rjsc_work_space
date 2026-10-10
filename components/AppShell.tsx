@@ -176,11 +176,11 @@ export default function AppShell({
             {!collapsed && (
               <div className="min-w-0">
                 <div className="truncate text-[17px] font-black tracking-tight text-white">
-                  RJSC Office
+                  ZA Corporate Desk
                 </div>
 
                 <div className="mt-0.5 truncate text-[10px] text-[#cde5da]">
-                  Internal Automation System
+                  Corporate Compliance Workspace
                 </div>
               </div>
             )}
@@ -272,7 +272,7 @@ export default function AppShell({
         <div className="shrink-0 p-3">
           <Link
             href="/settings"
-            title={collapsed ? "FAMES & R · Settings" : undefined}
+            title={collapsed ? "Zahir & Associate · Settings" : undefined}
             className={
               collapsed
                 ? "grid place-items-center rounded-2xl border border-white/10 bg-[#3b6d62] p-3 transition hover:bg-[#44786c]"
@@ -281,18 +281,18 @@ export default function AppShell({
           >
             {collapsed ? (
               <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#fff8e8] text-[10px] font-black text-[#315f55]">
-                F&R
+                ZA
               </div>
             ) : (
               <>
                 <div className="flex items-center gap-3">
                   <div className="grid h-9 w-9 place-items-center rounded-xl bg-[#fff8e8] text-[10px] font-black text-[#315f55]">
-                    F&R
+                    ZA
                   </div>
 
                   <div>
                     <div className="text-xs font-black text-white">
-                      FAMES & R
+                      Zahir & Associate
                     </div>
 
                     <div className="mt-1 text-[10px] text-[#c8dfd6]">
@@ -315,11 +315,11 @@ export default function AppShell({
           <div className="flex h-[72px] items-center justify-between gap-4 px-5 lg:px-7">
             <div>
               <div className="text-sm font-black text-[#292a26]">
-                FAMES & R Chartered Accountants
+                Zahir & Associate
               </div>
 
               <div className="mt-1 text-[11px] text-[#7e827a]">
-                RJSC Department · Internal Use Only
+                RJSC Services · Internal Use Only
               </div>
             </div>
 
@@ -458,7 +458,7 @@ export default function AppShell({
                       </div>
 
                       <div className="mt-1 text-xs text-[#858a83]">
-                        Manager · RJSC Department
+                        Manager · ZA Corporate Desk
                       </div>
                     </div>
 
