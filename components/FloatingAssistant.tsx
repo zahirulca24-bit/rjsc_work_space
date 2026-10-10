@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Bot, X, Send, ClipboardCheck, MessageCircle, Grip, RefreshCcw, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const API_BASE = "";
 const topics = [
   { label: "নতুন Client কীভাবে Add করব?", answer: "Sidebar থেকে Clients খুলুন। নতুন client তৈরির অপশন নির্বাচন করে প্রয়োজনীয় তথ্য পূরণ করে Save করুন।" },
   { label: "নতুন RJSC Work কীভাবে তৈরি করব?", answer: "Work Register খুলুন। নতুন কাজ তৈরির অপশন থেকে client, service ও কাজের বিবরণ দিয়ে Save করুন।" },
