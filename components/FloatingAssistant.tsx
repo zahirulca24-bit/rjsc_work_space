@@ -119,9 +119,9 @@ export default function FloatingAssistant() {
   return (
     <div className="pointer-events-none fixed inset-0 z-[60]">
       {open && (
-        <section aria-label="ZA Help Assistant" className="pointer-events-auto fixed bottom-24 right-4 flex max-h-[min(72vh,650px)] w-[min(390px,calc(100vw-24px))] flex-col overflow-hidden rounded-[24px] border border-[#afcdbb] bg-[#fff8e8] shadow-[0_20px_60px_rgba(26,66,54,0.26)] sm:right-6">
+        <section aria-label="ZA Desk Assistant" className="pointer-events-auto fixed bottom-24 right-4 flex max-h-[min(72vh,650px)] w-[min(390px,calc(100vw-24px))] flex-col overflow-hidden rounded-[24px] border border-[#afcdbb] bg-[#fff8e8] shadow-[0_20px_60px_rgba(26,66,54,0.26)] sm:right-6">
           <header className="flex items-center justify-between bg-gradient-to-r from-[#315f55] to-[#477c69] px-4 py-3 text-white">
-            <div className="flex items-center gap-2"><Bot size={22} /><div><div className="text-sm font-black">ZA Help Assistant</div><div className="text-[10px] opacity-80">Prepared answers · No AI API</div></div></div>
+            <div className="flex items-center gap-2"><Bot size={22} /><div><div className="text-sm font-black">ZA Desk Assistant</div><div className="text-[10px] opacity-80">Prepared answers · No AI API</div></div></div>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close assistant" className="rounded-lg p-2 hover:bg-white/10"><X size={18} /></button>
           </header>
           <div className="flex gap-2 border-b border-[#ded7c8] p-3">
