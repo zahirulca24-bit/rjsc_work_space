@@ -5,7 +5,7 @@ import { CorporateEvent } from "@/lib/clients/history-types";
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (event: CorporateEvent) => void;
+  onSave: (event: CorporateEvent) => Promise<void>;
   clientId: string;
   editEvent?: CorporateEvent | null;
 }
@@ -13,27 +13,33 @@ interface Props {
 export function HistoryRecordModal({ isOpen, onClose, onSave, clientId, editEvent }: Props) {
   const [type, setType] = useState<CorporateEvent['type']>('NAME_CHANGE');
   const [formData, setFormData] = useState<any>({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
     if (editEvent) {
       setType(editEvent.type);
       setFormData({ ...editEvent });
     } else {
+      setType("NAME_CHANGE");
       setFormData({});
     }
+    setSaveError("");
   }, [editEvent, isOpen]);
 
   const handleChange = (k: string, v: any) => setFormData({ ...formData, [k]: v });
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (saving) return;
+    setSaveError("");
     // Validation
     if (type === 'NAME_CHANGE' && (!formData.newName || !formData.effectiveDate)) return alert("New Name and Effective Date are required.");
     if (type === 'REGISTERED_OFFICE_CHANGE' && (!formData.address || !formData.effectiveFrom)) return alert("Address and Effective From date are required.");
     if (type === 'CAPITAL_CHANGE' && (Number(formData.authorizedCapital) < 0 || Number(formData.paidUpCapital) < 0 || !formData.effectiveDate)) return alert("Valid Capitals and Effective Date are required.");
     if (type === 'DIRECTOR_CHANGE' && (!formData.fullName || !formData.appointmentDate)) return alert("Full Name and Appointed Date are required.");
     if (type === 'SHAREHOLDER_CHANGE' && (!formData.shareholderName || Number(formData.shareCount) < 0 || !formData.effectiveFrom)) return alert("Shareholder Name, valid Share Count, and Effective From date are required.");
-    if (type === 'AGM' && (!formData.financialYear || !formData.agmDate)) return alert("Financial Year and AGM Date are required.");
-    if (type === 'ANNUAL_RETURN' && !formData.financialYear) return alert("Financial Year is required.");
+    if (type === 'AGM' && (!formData.financialYear || ((formData.status || 'HELD') === 'HELD' && !formData.agmDate))) return alert("Financial Year is required; AGM Date is required only when Held.");
+    if (type === 'ANNUAL_RETURN' && (!formData.financialYear || ((formData.filingStatus || 'PENDING') === 'FILED' && !formData.filedDate))) return alert("Financial Year is required; Filed Date is required when Filed.");
     if (type === 'RJSC_FILING' && (!formData.serviceType || !formData.formName)) return alert("Service Type and Form Name are required.");
     if (type === 'MORTGAGE' && (!formData.lender || Number(formData.securedAmount) < 0 || !formData.creationDate)) return alert("Lender, valid Secured Amount, and Creation Date are required.");
     if (type === 'COMPLIANCE_ISSUE' && (!formData.title || !formData.identifiedDate)) return alert("Title and Identified Date are required.");
@@ -50,16 +56,23 @@ export function HistoryRecordModal({ isOpen, onClose, onSave, clientId, editEven
     if (type === 'SHAREHOLDER_CHANGE' && !checkDates(formData.effectiveFrom, formData.effectiveTo)) return;
     if (type === 'COMPLIANCE_ISSUE' && !checkDates(formData.identifiedDate, formData.resolutionDate)) return;
 
-    if (!formData.sourceDocument) formData.sourceDocument = 'Manual Entry';
     const ev: CorporateEvent = {
       ...formData,
+      ...(type === "AGM" ? { status: formData.status || "HELD", agmDate: (formData.status || "HELD") === "HELD" ? formData.agmDate : null } : {}),
+      ...(type === "ANNUAL_RETURN" ? { filingStatus: formData.filingStatus || "PENDING", filedDate: (formData.filingStatus || "PENDING") === "FILED" ? formData.filedDate : null } : {}),
       id: editEvent ? editEvent.id : `evt-${Date.now()}`,
       clientId,
       type
     } as CorporateEvent;
 
-    onSave(ev);
-    onClose();
+    setSaving(true);
+    try {
+      await onSave(ev);
+    } catch (err: any) {
+      setSaveError(err?.message || "Could not save record.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -129,14 +142,14 @@ export function HistoryRecordModal({ isOpen, onClose, onSave, clientId, editEven
           {type === 'AGM' && (
             <>
               <div><label className="text-xs font-bold uppercase tracking-wide text-slate-600 block mb-1">Financial Year</label><input className={fieldClass} value={formData.financialYear||''} onChange={e=>handleChange('financialYear', e.target.value)}/></div>
-              <div><label className="text-xs font-bold uppercase tracking-wide text-slate-600 block mb-1">AGM Date</label><input type="date" className={fieldClass} value={formData.agmDate||''} onChange={e=>handleChange('agmDate', e.target.value)}/></div>
+              <div><label className="text-xs font-bold uppercase tracking-wide text-slate-600 block mb-1">AGM Date (if held)</label><input type="date" disabled={(formData.status || 'HELD') !== 'HELD'} className={fieldClass} value={formData.agmDate||''} onChange={e=>handleChange('agmDate', e.target.value)}/></div>
               <div><label className="text-xs font-bold uppercase tracking-wide text-slate-600 block mb-1">Status</label><select className={fieldClass} value={formData.status||'HELD'} onChange={e=>handleChange('status', e.target.value)}><option value="HELD">Held</option><option value="PENDING">Pending</option><option value="NOT_HELD">Not Held</option></select></div>
             </>
           )}
           {type === 'ANNUAL_RETURN' && (
             <>
               <div><label className="text-xs font-bold uppercase tracking-wide text-slate-600 block mb-1">Financial Year</label><input className={fieldClass} value={formData.financialYear||''} onChange={e=>handleChange('financialYear', e.target.value)}/></div>
-              <div><label className="text-xs font-bold uppercase tracking-wide text-slate-600 block mb-1">Status</label><select className={fieldClass} value={formData.filingStatus||'FILED'} onChange={e=>handleChange('filingStatus', e.target.value)}><option value="FILED">Filed</option><option value="PENDING">Pending</option><option value="OVERDUE">Overdue</option></select></div>
+              <div><label className="text-xs font-bold uppercase tracking-wide text-slate-600 block mb-1">Status</label><select className={fieldClass} value={formData.filingStatus||'PENDING'} onChange={e=>handleChange('filingStatus', e.target.value)}><option value="FILED">Filed</option><option value="PENDING">Pending</option><option value="OVERDUE">Overdue</option></select></div>
               <div><label className="text-xs font-bold uppercase tracking-wide text-slate-600 block mb-1">Due Date</label><input type="date" className={fieldClass} value={formData.dueDate||''} onChange={e=>handleChange('dueDate', e.target.value)}/></div>
               <div><label className="text-xs font-bold uppercase tracking-wide text-slate-600 block mb-1">Filed Date</label><input type="date" className={fieldClass} value={formData.filedDate||''} onChange={e=>handleChange('filedDate', e.target.value)}/></div>
             </>
@@ -172,9 +185,10 @@ export function HistoryRecordModal({ isOpen, onClose, onSave, clientId, editEven
           <div><label className="text-xs font-bold uppercase tracking-wide text-slate-600 block mb-1">Notes</label><input className={fieldClass} value={formData.notes||''} onChange={e=>handleChange('notes', e.target.value)}/></div>
         </div>
 
+        {saveError && <p role="alert" className="text-sm font-semibold text-red-600">{saveError}</p>}
         <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
           <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton onClick={handleSave}>Save Record</PrimaryButton>
+          <PrimaryButton onClick={handleSave}>{saving ? "Saving..." : "Save Record"}</PrimaryButton>
         </div>
       </div>
     </Modal>
