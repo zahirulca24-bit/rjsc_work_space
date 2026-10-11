@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { PageTitle, Card, Badge, PrimaryButton, SecondaryButton } from "@/components/UI";
-import { listDocuments, uploadDocument, getDocumentDownloadUrl } from "@/lib/api/documents";
+import { listDocuments, uploadDocument, getDocumentDownloadUrl, updateDocument } from "@/lib/api/documents";
+import { getClients } from "@/lib/api/clients";
 import { PageHeader, ContentCard, StatCard, StatusBadge, EmptyState, LoadingState, Table, Th, Td } from "@/components/SharedUI";
 import { FolderOpen, FileText, AlertTriangle, CheckCircle2, BrainCircuit } from "lucide-react";
 import DocumentAIModal from "@/components/DocumentAIModal";
@@ -9,6 +10,10 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 
 export default function DocumentsPage() {
   const [docs, setDocs] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [savingCategory, setSavingCategory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -46,17 +51,41 @@ export default function DocumentsPage() {
     fetchDocs();
   }, [search]);
 
+  useEffect(() => {
+    getClients().then(setClients).catch(() => setError("Could not load clients for document upload."));
+  }, []);
+
+  const received = docs.filter(d => d.status === "RECEIVED").length;
+  const missing = docs.filter(d => d.status === "MISSING").length;
+
+  const formatFileSize = (value: unknown) => {
+    if (value === null || value === undefined || value === "") return "Unknown";
+    const bytes = Number(value);
+    if (!Number.isFinite(bytes) || bytes < 0) return "Unknown";
+    return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
+  };
+
+  const changeCategory = async (documentId: string, newCategory: string) => {
+    setSavingCategory(true);
+    setError("");
+    try {
+      await updateDocument(documentId, { category: newCategory });
+      await fetchDocs();
+      setEditingCategoryId(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Could not update document category");
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) return;
     setUploading(true);
     setError("");
     try {
-      // Need a client_id or work_id in our backend, but documents page is global.
-      // Wait, backend requires client_id or work_id.
-      // So global upload requires specifying a client. We can mock it or show error.
-      // We will just catch the error and show it.
-      await uploadDocument(file, category, undefined, undefined, undefined, notes);
+      await uploadDocument(file, category, selectedClientId || undefined, undefined, undefined, notes);
       setFile(null);
       setCategory("OTHER");
       setNotes("");
@@ -77,8 +106,8 @@ export default function DocumentsPage() {
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard title="Total Documents" value={docs.length} icon={FolderOpen} color="aqua" />
-        <StatCard title="Received" value={docs.length} icon={CheckCircle2} color="sage" />
-        <StatCard title="Missing" value="0" icon={AlertTriangle} color="coral" />
+        <StatCard title="Received" value={received} icon={CheckCircle2} color="sage" />
+        <StatCard title="Missing" value={missing} icon={AlertTriangle} color="coral" />
         <StatCard title="Unclassified" value={docs.filter(d => d.category==='OTHER').length} icon={FileText} color="yellow" />
       </div>
 
@@ -92,11 +121,15 @@ export default function DocumentsPage() {
             className="w-full px-4 py-2 text-sm border border-[#d9e3df] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#79b993]"
           />
         </div>
-        <div className="flex gap-2 items-center">
-          <select value={category} onChange={e=>setCategory(e.target.value)} className="px-3 py-2 text-sm border border-[#d9e3df] rounded-xl bg-white">
+        <div className="flex w-full flex-wrap gap-2 items-center sm:w-auto">
+          <select aria-label="Associate document with client" value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)} className="min-w-0 max-w-full rounded-xl border border-[#d9e3df] bg-white px-3 py-2 text-sm">
+            <option value="">Unlinked document</option>
+            {clients.map(c => <option key={c.id} value={c.id}>{c.legal_name}</option>)}
+          </select>
+          <select aria-label="Upload document category" value={category} onChange={e=>setCategory(e.target.value)} className="px-3 py-2 text-sm border border-[#d9e3df] rounded-xl bg-white">
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <input type="file" onChange={e => setFile(e.target.files?.[0] || null)} className="text-sm" />
+          <input aria-label="Choose document" type="file" accept=".pdf,.docx,.xlsx,.xls,.csv,.jpg,.jpeg,.png" onChange={e => setFile(e.target.files?.[0] || null)} className="min-w-0 max-w-full text-sm" />
           <button onClick={handleUpload} disabled={uploading || !file} className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#447a5d] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#396a50] disabled:opacity-50">
             {uploading ? "Uploading..." : "Upload Document"}
           </button>
@@ -124,9 +157,20 @@ export default function DocumentsPage() {
               {docs.map(d => (
                 <tr key={d.id}>
                   <Td className="font-bold text-[#181818]">{d.original_filename}</Td>
-                  <Td><StatusBadge status={d.category} /></Td>
-                  <Td className="text-sm">{d.uploaded_by}</Td>
-                  <Td className="font-mono text-sm">{Math.round(d.size_bytes / 1024)} KB</Td>
+                  <Td>{editingCategoryId === d.id ? (
+                    <select aria-label={`Correct category for ${d.original_filename || d.document_name}`} defaultValue={d.category} disabled={savingCategory}
+                      onChange={e => void changeCategory(d.id, e.target.value)}
+                      className="max-w-40 rounded-lg border border-[#d9e3df] bg-white p-2 text-xs">
+                      {categories.concat(["SCHEDULE_X", "AUDIT_REPORT", "DVC", "COURT_ORDER"]).filter((c, i, arr) => arr.indexOf(c) === i).map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  ) : (
+                    <button type="button" title="Correct document category" className="text-left" onClick={() => setEditingCategoryId(d.id)}>
+                      <StatusBadge status={d.category} />
+                      <span className="ml-1 text-[10px] underline">Edit</span>
+                    </button>
+                  )}</Td>
+                  <Td className="text-sm">{d.uploaded_by || "Not recorded"}</Td>
+                  <Td className="font-mono text-sm">{formatFileSize(d.file_size)}</Td>
                   <Td>
                     <div className="flex flex-wrap items-center gap-3">
                       <a
