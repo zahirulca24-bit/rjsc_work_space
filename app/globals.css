@@ -831,3 +831,27 @@ aside nav a[class*="bg-[#fff8e8]"]{
 }
 
 /* ===== END WORK REGISTER DESIGN ===== */
+
+
+/* Mobile dashboard: keep the page to the viewport, not a desktop table width. */
+@media (max-width: 767px) {
+  html, body { max-width: 100%; overflow-x: clip; }
+  .shell-main, .app-content, .app-content-inner { width: 100%; min-width: 0; max-width: 100%; }
+  .app-content { padding: 12px !important; }
+  .rjsc-dashboard {
+    width: auto;
+    min-width: 0;
+    max-width: calc(100% + 24px);
+    margin: -12px;
+    padding: 12px;
+    overflow-x: clip;
+    perspective: none;
+  }
+  .rjsc-dashboard > section { min-width: 0; }
+  .rjsc-dashboard .dash-3d:hover,
+  .rjsc-dashboard .dash-panel-3d:hover,
+  .rjsc-dashboard .dash-action:hover { transform: none; }
+  .rjsc-dashboard table { min-width: 0; }
+  .rjsc-dashboard .dashboard-hero { border-radius: 18px; }
+  .rjsc-dashboard .dash-3d { border-radius: 14px; }
+}
