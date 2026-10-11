@@ -6,6 +6,7 @@ import { X, Upload, FileText, CheckCircle2, AlertTriangle, XCircle, Info } from 
 import { EntityType } from "@/lib/rjsc/types";
 import { CANONICAL_FIELDS, parseFile, ParsedRow, CanonicalRow, validateRows, ValidatedRow } from "@/lib/clients/import-utils";
 import { createClient, bulkImportClients } from "@/lib/api/clients";
+import ClientSourceUpload from "./client-source-upload";
 
 interface Props {
   isOpen: boolean;
@@ -15,12 +16,12 @@ interface Props {
 }
 
 export function AddClientModal({ isOpen, onClose, onSuccess, existingClients }: Props) {
-  const [mode, setMode] = useState<'manual' | 'import'>('manual');
+  const [mode, setMode] = useState<'manual' | 'import' | 'source'>('manual');
 
   if (!isOpen) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add Client" size={mode === 'import' ? 'xl' : 'lg'}>
+    <Modal isOpen={isOpen} onClose={onClose} title="Add Client" size={mode !== 'manual' ? 'xl' : 'lg'}>
       <div className="flex gap-4 border-b border-slate-200 px-6 py-3">
         <button
           className={`text-sm font-semibold pb-3 border-b-2 -mb-[13px] ${mode === 'manual' ? 'border-emerald-600 text-emerald-800' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
@@ -34,13 +35,21 @@ export function AddClientModal({ isOpen, onClose, onSuccess, existingClients }: 
         >
           Bulk Import
         </button>
+        <button
+          className={`text-sm font-semibold pb-3 border-b-2 -mb-[13px] ${mode === 'source' ? 'border-emerald-600 text-emerald-800' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          onClick={() => setMode('source')}
+        >
+          PDF / Screenshot
+        </button>
       </div>
 
       <div className="px-6 py-6">
         {mode === 'manual' ? (
           <ManualEntryForm onClose={onClose} onSuccess={onSuccess} />
-        ) : (
+        ) : mode === 'import' ? (
           <ImportFlow onClose={onClose} onSuccess={onSuccess} existingClients={existingClients} />
+        ) : (
+          <ClientSourceUpload onClose={onClose} onSuccess={onSuccess} existingClients={existingClients} />
         )}
       </div>
     </Modal>
