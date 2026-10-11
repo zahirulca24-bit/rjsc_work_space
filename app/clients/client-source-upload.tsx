@@ -7,6 +7,7 @@ import { EntityType } from "@/lib/rjsc/types";
 import { createClient } from "@/lib/api/clients";
 import { uploadDocument } from "@/lib/api/documents";
 import { fieldClass, PrimaryButton } from "@/components/UI";
+import { fetchApi } from "@/lib/api/fetchApi";
 
 const MAX_SIZE = 20 * 1024 * 1024;
 const accepted = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -34,6 +35,10 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
   const [error, setError] = useState("");
   const [createdClientId, setCreatedClientId] = useState("");
   const [fileSaved, setFileSaved] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractionMessage, setExtractionMessage] = useState("");
+  const [extractedFields, setExtractedFields] = useState<string[]>([]);
+
 
   useEffect(() => {
     if (!file) {
@@ -54,11 +59,55 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
     );
   }, [existingClients, regNo, name]);
 
+  const extractFromFile = async (selected: File) => {
+    setExtracting(true);
+    setExtractionMessage("Reading document and suggesting client details...");
+    setExtractedFields([]);
+    try {
+      const data = new FormData();
+      data.append("file", selected);
+      const response = await fetchApi("/api/client-intake/extract-client", {
+        method: "POST", body: data,
+      });
+      if (!response.ok) {
+        const failure = await response.json().catch(() => ({}));
+        throw new Error(typeof failure.detail === "string" ? failure.detail : "Unable to extract details");
+      }
+      const result = await response.json();
+      const fields = result.fields || {};
+      const found: string[] = [];
+      if (typeof fields.legal_name === "string" && fields.legal_name.trim()) {
+        setName(fields.legal_name.trim()); found.push("Company Name");
+      }
+      if (typeof fields.registration_no === "string" && fields.registration_no.trim()) {
+        setRegNo(fields.registration_no.trim()); found.push("Registration No.");
+      }
+      if (typeof fields.incorporation_date === "string" && fields.incorporation_date.trim()) {
+        setIncorporationDate(fields.incorporation_date.trim()); found.push("Incorporation Date");
+      }
+      setExtractedFields(found);
+      setExtractionMessage(
+        found.length
+          ? `Suggested from source: ${found.join(", ")}. Please check every value against the PDF before confirming.`
+          : (result.message || "No fields extracted. Enter missing details manually.")
+      );
+    } catch (err: unknown) {
+      setExtractionMessage(
+        `Auto-extraction unavailable: ${err instanceof Error ? err.message : "Unknown error"}. You may fill the fields manually.`
+      );
+    } finally {
+      setExtracting(false);
+    }
+  };
+
   const selectFile = (selected?: File) => {
     setError("");
     setFileError("");
     setConfirmed(false);
     setFile(null);
+    setExtractedFields([]);
+    setExtractionMessage("");
+    setName(""); setRegNo(""); setIncorporationDate("");
     if (!selected) return;
     const ext = selected.name.toLowerCase().split(".").pop();
     if (!accepted.has(selected.type) || !["pdf", "jpg", "jpeg", "png"].includes(ext || "")) {
@@ -70,11 +119,12 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
       return;
     }
     setFile(selected);
+    void extractFromFile(selected);
   };
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (saving || createdClientId || !file || !confirmed || duplicate || !name.trim()) return;
+    if (saving || extracting || createdClientId || !file || !confirmed || duplicate || !name.trim()) return;
     setError("");
     setSaving(true);
     let newClient: any;
@@ -108,8 +158,8 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
   return (
     <form onSubmit={save} className="space-y-5">
       <div className="rounded-xl border border-[#d9e3df] bg-[#eef7f3] p-4 text-sm text-[#315f55]">
-        Upload a company PDF or screenshot, review the source and enter the details manually.
-        Nothing is created until you confirm. This feature does not automatically extract or verify RJSC facts.
+        Upload a Form XII PDF or screenshot. The system will suggest company details automatically;
+        check and correct every suggested field before confirming. Nothing is saved until you approve.
       </div>
       <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-[#b8dfc6] bg-[#fffdf7] px-4 py-7 text-center">
         <Upload className="h-8 w-8 text-[#447a5d]" />
@@ -119,6 +169,12 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
           disabled={Boolean(createdClientId)} onChange={e => selectFile(e.target.files?.[0])} />
       </label>
       {fileError && <p role="alert" className="text-sm text-red-700">{fileError}</p>}
+      {file && (extracting || extractionMessage) && (
+        <p role="status" className="rounded-lg bg-[#eef7f3] p-3 text-sm text-[#315f55]">
+          {extracting ? "Reading uploaded document..." : extractionMessage}
+          {!extracting && extractedFields.length > 0 && <span className="mt-1 block text-xs font-bold">Auto-filled: {extractedFields.join(", ")}</span>}
+        </p>
+      )}
       {file && previewUrl && (
         <div className="space-y-2 rounded-xl border border-[#ece5d9] p-3">
           <div className="flex items-center gap-2 text-sm font-bold text-[#22342d]">
@@ -182,8 +238,8 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
       )}
       <div className="flex flex-wrap justify-end gap-3 border-t pt-4">
         <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Close</button>
-        {!createdClientId && <PrimaryButton disabled={saving || !file || !confirmed || Boolean(duplicate) || !name.trim()}>
-          {saving ? "Creating & Uploading..." : "Confirm, Create Client & Attach Document"}
+        {!createdClientId && <PrimaryButton disabled={saving || extracting || !file || !confirmed || Boolean(duplicate) || !name.trim()}>
+          {saving ? "Creating & Uploading..." : extracting ? "Extracting..." : "Confirm, Create Client & Attach Document"}
         </PrimaryButton>}
       </div>
     </form>
