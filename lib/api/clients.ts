@@ -8,13 +8,15 @@ export const getClients = async (search?: string, entityType?: string, status?: 
     if (status) url += `status=${status}&`;
     
     const res = await fetchApi(url);
-    if (!res.ok) throw new Error("Failed to fetch clients");
+    if (res.status === 401) throw new Error("SESSION_EXPIRED");
+    if (!res.ok) throw new Error(`Failed to fetch clients (HTTP ${res.status})`);
     return res.json();
 };
 
 export const getClient = async (id: string) => {
     const res = await fetchApi(`${API_BASE}/api/clients/${id}`);
-    if (!res.ok) throw new Error("Failed to fetch client");
+    if (res.status === 401) throw new Error("SESSION_EXPIRED");
+    if (!res.ok) throw new Error(`Failed to fetch client (HTTP ${res.status})`);
     return res.json();
 };
 
