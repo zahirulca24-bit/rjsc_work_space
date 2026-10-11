@@ -38,6 +38,7 @@ def extract_client_fields(text: str) -> dict:
         if m:
             raw = _clean(m[1])
             raw = re.split(r"\s*(?:Reg\.?\s*No\.?|Registration\s+No\.?|No\.\s*C[-–]\s*\d+|Incorporat(?:ed|ion))\s*[:\-]?", raw, maxsplit=1, flags=re.I)[0]
+            raw = raw.strip(" ,.;:-")
             if 3 <= len(raw) <= 200:
                 result["legal_name"] = raw
                 break
