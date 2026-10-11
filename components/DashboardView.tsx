@@ -80,21 +80,21 @@ export default function DashboardView() {
 
   return (
 
-    <div className="rjsc-dashboard space-y-4">
+    <div className="rjsc-dashboard min-w-0 space-y-3 sm:space-y-4">
 
       {loading && <div role="status" className="rounded-xl bg-[#eef7f3] px-4 py-3 text-sm text-[#315f55]">Loading real dashboard data...</div>}
       {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span>Dashboard could not load: {error}. Previous results may be outdated.</span><button type="button" onClick={() => void reload()} className="font-bold underline">Retry</button></div>}
       {!loading && !error && works.length === 0 && clients.length === 0 && <div className="rounded-xl border border-[#d9e3df] bg-white px-4 py-3 text-sm text-[#47765a]">No clients or works yet. Add a client to begin.</div>}
       {/* HERO */}
       <section className="dashboard-hero overflow-hidden rounded-[26px] border border-[#eadfca]">
-        <div className="grid gap-5 p-5 xl:grid-cols-[1.15fr_.85fr] xl:p-6">
+        <div className="grid min-w-0 gap-4 p-4 sm:p-5 xl:grid-cols-[1.15fr_.85fr] xl:p-6">
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[#dff1e7] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#44765b]">
               <span className="h-2 w-2 rounded-full bg-[#79b993]" />
               RJSC Operations
             </div>
 
-            <h1 className="max-w-[760px] text-[29px] font-black tracking-[-0.035em] text-[#181818] xl:text-[36px] xl:leading-[1.05]">
+            <h1 className="max-w-[760px] text-[24px] leading-tight font-black tracking-[-0.035em] text-[#181818] sm:text-[29px] xl:text-[36px] xl:leading-[1.05]">
               Manage compliance work
               <span className="block text-[#477a5c]">
                 without losing control.
@@ -106,10 +106,10 @@ export default function DashboardView() {
               collections and review status — all from one internal workspace.
             </p>
 
-            <div className="mt-4 flex flex-wrap gap-2.5">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2.5">
               <Link
                 href="/new-work"
-                className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#447a5d] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#396a50]"
+                className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-[#447a5d] px-2 py-2 text-center text-xs font-bold text-white shadow-sm transition hover:bg-[#396a50] sm:px-5 sm:text-sm"
               >
                 <Plus size={17} />
                 Create New Work
@@ -117,7 +117,7 @@ export default function DashboardView() {
 
               <Link
                 href="/clients"
-                className="inline-flex h-11 items-center gap-2 rounded-xl border border-[#dccfb6] bg-white/70 px-5 text-sm font-bold text-[#4b4d47] transition hover:bg-white"
+                className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl border border-[#dccfb6] bg-white/70 px-2 py-2 text-center text-xs font-bold text-[#4b4d47] transition hover:bg-white sm:px-5 sm:text-sm"
               >
                 <Building2 size={17} />
                 Client Directory
@@ -125,7 +125,7 @@ export default function DashboardView() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3">
             <HeroTile
               tone="coral"
               value={loading ? "…" : String(openWorks.length)}
@@ -158,7 +158,7 @@ export default function DashboardView() {
       </section>
 
       {/* KPI */}
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid min-w-0 grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
         <Kpi
           tone="sage"
           icon={<Building2 size={18} />}
@@ -193,10 +193,10 @@ export default function DashboardView() {
       </section>
 
       {/* OPERATIONS */}
-      <section className="grid gap-4 xl:grid-cols-[1.4fr_.6fr]">
+      <section className="grid min-w-0 gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,.6fr)]">
 
         {/* RECENT WORKS */}
-        <div className="dash-panel-3d rounded-[20px] border border-[#d9e3df] bg-[#fffaf0] shadow-[0_10px_30px_rgba(39,60,53,.05)]">
+        <div className="dash-panel-3d min-w-0 overflow-hidden rounded-[20px] border border-[#d9e3df] bg-[#fffaf0] shadow-[0_10px_30px_rgba(39,60,53,.05)]">
           <div className="flex items-center justify-between border-b border-[#e7dfd0] px-5 py-4">
             <div>
               <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#779084]">
@@ -217,7 +217,7 @@ export default function DashboardView() {
             </Link>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="hidden min-w-0 overflow-x-auto md:block">
             <table className="min-w-[850px] w-full">
               <thead>
                 <tr className="bg-[#dcefe7]">
@@ -279,6 +279,24 @@ export default function DashboardView() {
               </tbody>
             </table>
           </div>
+          <div className="space-y-2 p-3 md:hidden">
+            {recentWorks.length === 0 ? (
+              <p className="py-5 text-center text-sm text-[#75807a]">No works recorded yet.</p>
+            ) : recentWorks.map(work => (
+              <Link href="/work-register" key={work.id} className="block min-w-0 rounded-xl border border-[#e7dfd0] bg-white p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="min-w-0 break-words text-sm font-black text-[#26362f]">{work.work_code || work.id.slice(0,8)}</span>
+                  <span className="shrink-0 rounded-full bg-[#dff2f5] px-2 py-1 text-[10px] font-bold text-[#397684]">{work.status}</span>
+                </div>
+                <p className="mt-1 truncate text-sm font-semibold text-[#343530]">{clientNames.get(work.client_id) || "Unknown client"}</p>
+                <p className="mt-1 break-words text-xs text-[#62655f]">{work.service_id}</p>
+                <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-[#62655f]">
+                  <span>Due: {dateLabel(work.due_date)}</span>
+                  <span className="font-bold">{work.total_bill === null ? "Not estimated" : money(amount(work.total_bill))}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
 
         {/* RIGHT COLUMN */}
@@ -336,7 +354,7 @@ export default function DashboardView() {
       </section>
 
       {/* REVIEW + ACTIONS */}
-      <section className="grid gap-4 xl:grid-cols-[1fr_.8fr]">
+      <section className="grid min-w-0 gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,.8fr)]">
 
         <div className="dash-panel-3d rounded-[20px] border border-[#d7e5e1] bg-[#eef7f3] p-4">
           <div className="mb-4 flex items-center justify-between">
@@ -446,18 +464,18 @@ function HeroTile({
   };
 
   return (
-    <div className={`dash-3d rounded-[18px] p-3.5 ${styles[tone]}`}>
+    <div className={`dash-3d min-w-0 rounded-[18px] p-2.5 sm:p-3.5 ${styles[tone]}`}>
       <div className="flex items-start justify-between">
-        <div className="text-[22px] font-black tracking-tight">
+        <div className="min-w-0 break-words text-[18px] font-black tracking-tight sm:text-[22px]">
           {value}
         </div>
 
-        <div className="rounded-xl bg-white/25 p-2">
+        <div className="shrink-0 rounded-xl bg-white/25 p-1.5 sm:p-2">
           {icon}
         </div>
       </div>
 
-      <div className="mt-3 text-[11px] font-bold">
+      <div className="mt-2 text-[10px] font-bold sm:mt-3 sm:text-[11px]">
         {label}
       </div>
     </div>
@@ -497,7 +515,7 @@ function Kpi({
   };
 
   return (
-    <div className={`dash-3d rounded-[18px] border p-4 ${styles[tone].box}`}>
+    <div className={`dash-3d min-w-0 rounded-[18px] border p-3 sm:p-4 ${styles[tone].box}`}>
       <div className={`grid h-9 w-9 place-items-center rounded-xl ${styles[tone].icon}`}>
         {icon}
       </div>
@@ -506,11 +524,11 @@ function Kpi({
         {label}
       </div>
 
-      <div className="mt-1 text-[21px] font-black tracking-tight text-[#222522]">
+      <div className="mt-1 break-words text-[17px] font-black tracking-tight text-[#222522] sm:text-[21px]">
         {value}
       </div>
 
-      <div className="mt-1 text-xs text-[#747c76]">
+      <div className="mt-1 text-[11px] text-[#747c76] sm:text-xs">
         {sub}
       </div>
     </div>
