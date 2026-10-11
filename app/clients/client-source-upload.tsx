@@ -6,7 +6,7 @@ import { AlertTriangle, FileImage, FileText, Upload } from "lucide-react";
 import { EntityType } from "@/lib/rjsc/types";
 import { createClient } from "@/lib/api/clients";
 import { uploadDocument } from "@/lib/api/documents";
-import { fieldClass, PrimaryButton, SecondaryButton } from "@/components/UI";
+import { fieldClass, PrimaryButton } from "@/components/UI";
 
 const MAX_SIZE = 20 * 1024 * 1024;
 const accepted = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -181,7 +181,7 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
         </div>
       )}
       <div className="flex flex-wrap justify-end gap-3 border-t pt-4">
-        <SecondaryButton onClick={onClose}>Close</SecondaryButton>
+        <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Close</button>
         {!createdClientId && <PrimaryButton disabled={saving || !file || !confirmed || Boolean(duplicate) || !name.trim()}>
           {saving ? "Creating & Uploading..." : "Confirm, Create Client & Attach Document"}
         </PrimaryButton>}
