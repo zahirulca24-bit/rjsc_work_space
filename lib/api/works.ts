@@ -3,7 +3,8 @@ const API_BASE = "";
 
 export const getWorks = async () => {
     const res = await fetchApi(`${API_BASE}/api/works`);
-    if (!res.ok) throw new Error("Failed to fetch works");
+    if (res.status === 401) throw new Error("SESSION_EXPIRED");
+    if (!res.ok) throw new Error(`Failed to fetch works (HTTP ${res.status})`);
     return res.json();
 };
 

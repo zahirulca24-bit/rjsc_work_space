@@ -58,7 +58,8 @@ export default function DashboardView() {
       setWorks(workRows);
       setFinance(financeSummary);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load dashboard");
+      const reason = err instanceof Error ? err.message : "Unable to load dashboard";
+      setError(reason === "SESSION_EXPIRED" ? "SESSION_EXPIRED" : reason);
     } finally {
       setLoading(false);
     }
@@ -83,7 +84,17 @@ export default function DashboardView() {
     <div className="rjsc-dashboard min-w-0 space-y-3 sm:space-y-4">
 
       {loading && <div role="status" className="rounded-xl bg-[#eef7f3] px-4 py-3 text-sm text-[#315f55]">Loading real dashboard data...</div>}
-      {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><span>Dashboard could not load: {error}. Previous results may be outdated.</span><button type="button" onClick={() => void reload()} className="font-bold underline">Retry</button></div>}
+      {error && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>{error === "SESSION_EXPIRED"
+            ? "Your login session has expired or is no longer valid. Please sign in again. Dashboard totals are unavailable; they are not zero."
+            : `Dashboard data unavailable: ${error}. Figures below are hidden until the connection succeeds.`}</span>
+          <div className="flex items-center gap-3">
+            {error === "SESSION_EXPIRED" && <Link href="/login" className="font-bold underline">Sign in again</Link>}
+            <button type="button" onClick={() => void reload()} className="font-bold underline">Retry</button>
+          </div>
+        </div>
+      )}
       {!loading && !error && works.length === 0 && clients.length === 0 && <div className="rounded-xl border border-[#d9e3df] bg-white px-4 py-3 text-sm text-[#47765a]">No clients or works yet. Add a client to begin.</div>}
       {/* HERO */}
       <section className="dashboard-hero overflow-hidden rounded-[26px] border border-[#eadfca]">
@@ -128,28 +139,28 @@ export default function DashboardView() {
           <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3">
             <HeroTile
               tone="coral"
-              value={loading ? "…" : String(openWorks.length)}
+              value={(loading || Boolean(error)) ? "—" : String(openWorks.length)}
               label="Open Work"
               icon={<BriefcaseBusiness size={18} />}
             />
 
             <HeroTile
               tone="aqua"
-              value={loading ? "…" : String(activeClients)}
+              value={(loading || Boolean(error)) ? "—" : String(activeClients)}
               label="Active Clients"
               icon={<Users size={18} />}
             />
 
             <HeroTile
               tone="yellow"
-              value={loading ? "…" : money(outstanding)}
+              value={(loading || Boolean(error)) ? "—" : money(outstanding)}
               label="Outstanding"
               icon={<CircleDollarSign size={18} />}
             />
 
             <HeroTile
               tone="sage"
-              value={loading ? "…" : String(completedWorks)}
+              value={(loading || Boolean(error)) ? "—" : String(completedWorks)}
               label="Completed Jobs"
               icon={<FileText size={18} />}
             />
@@ -163,7 +174,7 @@ export default function DashboardView() {
           tone="sage"
           icon={<Building2 size={18} />}
           label="Active Clients"
-          value={loading ? "…" : String(activeClients)}
+          value={(loading || Boolean(error)) ? "—" : String(activeClients)}
           sub="Client master"
         />
 
@@ -171,7 +182,7 @@ export default function DashboardView() {
           tone="aqua"
           icon={<BriefcaseBusiness size={18} />}
           label="Open Jobs"
-          value={loading ? "…" : String(openWorks.length)}
+          value={(loading || Boolean(error)) ? "—" : String(openWorks.length)}
           sub="Not completed/cancelled"
         />
 
@@ -179,7 +190,7 @@ export default function DashboardView() {
           tone="yellow"
           icon={<ReceiptText size={18} />}
           label="Total Bill"
-          value={loading ? "…" : money(billed)}
+          value={(loading || Boolean(error)) ? "—" : money(billed)}
           sub="Issued invoices"
         />
 
@@ -187,7 +198,7 @@ export default function DashboardView() {
           tone="coral"
           icon={<CircleDollarSign size={18} />}
           label="Client Due"
-          value={loading ? "…" : money(outstanding)}
+          value={(loading || Boolean(error)) ? "—" : money(outstanding)}
           sub="Follow-up required"
         />
       </section>
@@ -275,13 +286,13 @@ export default function DashboardView() {
                     </td>
                   </tr>
                 ))}
-                {recentWorks.length === 0 && <tr><td colSpan={8} className="px-5 py-8 text-center text-sm text-[#75807a]">No works recorded yet.</td></tr>}
+                {recentWorks.length === 0 && <tr><td colSpan={8} className="px-5 py-8 text-center text-sm text-[#75807a]">{error ? "Work data unavailable — sign in again or Retry." : "No works recorded yet."}</td></tr>}
               </tbody>
             </table>
           </div>
           <div className="space-y-2 p-3 md:hidden">
             {recentWorks.length === 0 ? (
-              <p className="py-5 text-center text-sm text-[#75807a]">No works recorded yet.</p>
+              <p className="py-5 text-center text-sm text-[#75807a]">{error ? "Work data unavailable — sign in again or Retry." : "No works recorded yet."}</p>
             ) : recentWorks.map(work => (
               <Link href="/work-register" key={work.id} className="block min-w-0 rounded-xl border border-[#e7dfd0] bg-white p-3">
                 <div className="flex items-start justify-between gap-2">
@@ -310,11 +321,11 @@ export default function DashboardView() {
                 </div>
 
                 <div className="mt-2 text-[30px] font-black tracking-tight text-[#244434]">
-                  {loading ? "…" : money(collected)}
+                  {(loading || Boolean(error)) ? "—" : money(collected)}
                 </div>
 
                 <div className="mt-1 text-xs text-[#65786d]">
-                  {billed > 0 ? collectionRate.toFixed(1) + "% of issued invoices collected" : "No issued invoices yet"}
+                  {error ? "Unable to load collection information" : billed > 0 ? collectionRate.toFixed(1) + "% of issued invoices collected" : "No issued invoices yet"}
                 </div>
               </div>
 
@@ -340,11 +351,11 @@ export default function DashboardView() {
                 </div>
 
                 <div className="mt-1 text-sm text-[#8b5c53]">
-                  {upcoming ? (upcoming.work_code || upcoming.id.slice(0,8)) + " · " + upcoming.service_id : "No upcoming work"}
+                  {error ? "Unavailable" : upcoming ? (upcoming.work_code || upcoming.id.slice(0,8)) + " · " + upcoming.service_id : "No upcoming work"}
                 </div>
 
                 <div className="mt-2 text-xs font-bold text-[#c95e4b]">
-                  {upcoming ? "Due " + dateLabel(upcoming.due_date) : "No date scheduled"}
+                  {error ? "Sign in again or Retry" : upcoming ? "Due " + dateLabel(upcoming.due_date) : "No date scheduled"}
                 </div>
               </div>
             </div>
@@ -369,7 +380,7 @@ export default function DashboardView() {
             </div>
 
             <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-[#4d7662]">
-              {attentionWorks.length} overdue
+              {error ? "—" : attentionWorks.length} overdue
             </span>
           </div>
 
@@ -381,7 +392,7 @@ export default function DashboardView() {
                 <div className="mt-2 text-xs font-bold text-[#c95e4b]">Overdue: {dateLabel(work.due_date)}</div>
               </Link>
             ))}
-            {attentionWorks.length === 0 && <p className="text-sm text-[#75807a]">No overdue works.</p>}
+            {attentionWorks.length === 0 && <p className="text-sm text-[#75807a]">{error ? "Unable to check overdue work." : "No overdue works."}</p>}
           </div>
         </div>
 
