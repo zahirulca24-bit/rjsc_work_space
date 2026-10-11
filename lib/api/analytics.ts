@@ -6,7 +6,8 @@ export const getFinanceSummary = async (dateFrom?: string, dateTo?: string) => {
     if (dateFrom) params.append("date_from", dateFrom);
     if (dateTo) params.append("date_to", dateTo);
     const res = await fetchApi(`${API_BASE}/api/analytics/finance-summary?${params.toString()}`);
-    if (!res.ok) throw new Error("Failed to fetch finance summary");
+    if (res.status === 401) throw new Error("SESSION_EXPIRED");
+    if (!res.ok) throw new Error(`Failed to fetch finance summary (HTTP ${res.status})`);
     return res.json();
 };
 

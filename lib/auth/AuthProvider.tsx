@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { getMe, login as loginApi, logout as logoutApi } from "@/lib/api/auth";
+import { onSessionExpired } from "@/lib/api/fetchApi";
 import { useRouter, usePathname } from "next/navigation";
 
 interface User {
@@ -47,10 +48,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         fetchUser();
     }, []);
 
+    // Subscribe to centralized session expiration events from protected API calls
+    useEffect(() => {
+        const unsubscribe = onSessionExpired((destination) => {
+            setUser(null);
+            setLoading(false);
+            if (pathname !== "/login") {
+                const target = destination || (typeof window !== "undefined" ? window.location.pathname + window.location.search : "");
+                const redirectTarget = target && target !== "/" && !target.startsWith("/login")
+                    ? `/login?returnUrl=${encodeURIComponent(target)}`
+                    : "/login";
+                router.push(redirectTarget);
+            }
+        });
+
+        return () => {
+            unsubscribe();
+        };
+    }, [pathname, router]);
+
     useEffect(() => {
         if (!loading) {
             if (!user && pathname !== "/login") {
-                router.push("/login");
+                const target = pathname && pathname !== "/" ? `?returnUrl=${encodeURIComponent(pathname)}` : "";
+                router.push(`/login${target}`);
             }
         }
     }, [user, loading, pathname, router]);
@@ -58,6 +79,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const login = async (credentials: any) => {
         await loginApi(credentials);
         await fetchUser();
+        if (typeof window !== "undefined") {
+            const params = new URLSearchParams(window.location.search);
+            const returnUrl = params.get("returnUrl");
+            if (returnUrl && returnUrl.startsWith("/") && !returnUrl.startsWith("//")) {
+                router.push(returnUrl);
+                return;
+            }
+        }
         router.push("/dashboard");
     };
 

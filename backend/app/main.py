@@ -2,6 +2,7 @@ import logging
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -101,7 +102,7 @@ async def validation_exception_handler(
     return JSONResponse(
         status_code=422,
         content={
-            "detail": exc.errors(),
+            "detail": jsonable_encoder(exc.errors()),
             "request_id": getattr(request.state, "request_id", None),
         },
     )

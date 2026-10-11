@@ -17,12 +17,14 @@ Updated: 2026-10-12
 - Form XII source extraction in Add Client: PR #15 exists; check current PR status separately. PDF text extraction and image suggestions do not extract director table and must be verified on authentic sample.
 
 ## P0 — Stability and verification
-1. Run a real backend test suite in CI (GitHub workflow missing); verify build/typecheck and authenticated E2E flows.
-2. Real Google Drive storage configuration, upload, download, retention and recovery test; Render local storage is not durable by default.
-3. Mobile shell/navigation and mobile form/table testing across phone sizes.
-4. Remove remaining fake notification items; never show demo content as real client compliance.
-5. Verify staff roles/login and document authorization; assess access control and audit logging.
-6. Improve client import duplicate checks and failed document attachment recovery.
+1. **[Implemented in local code & verified]** Fix Pydantic validation exception serialization crash (FastAPI `jsonable_encoder`) and add regression test for safe HTTP 422 JSON errors without traceback leakage.
+2. **[Implemented in local code & verified]** Centralize HTTP 401 detection in `lib/api/fetchApi.ts`, exclude `/api/auth/login` to prevent credential-failure loops, synchronize `AuthProvider` user-state reset, preserve `returnUrl` destination, and harmonize `SESSION_EXPIRED` throwing across `clients.ts`, `works.ts`, and `analytics.ts`.
+3. Run a real backend test suite in CI (GitHub workflow missing); verify build/typecheck and authenticated E2E flows.
+4. Real Google Drive storage configuration, upload, download, retention and recovery test; Render local storage is not durable by default.
+5. Mobile shell/navigation and mobile form/table testing across phone sizes.
+6. Remove remaining fake notification items; never show demo content as real client compliance.
+7. Verify staff roles/login and document authorization; assess access control and audit logging.
+8. Improve client import duplicate checks and failed document attachment recovery.
 
 ## P1 — RJSC forms and Working Papers (user-confirmed)
 **Requirement:** Keep user's 31 supplied RJSC form formats in ZA Corporate Desk. Select client/work; automatically populate fields from **verified, existing saved data**, leave unknowns blank, permit staff correction, require review/approval, then generate a form matching the appropriate layout. Do not replace original format with a generic sheet.
