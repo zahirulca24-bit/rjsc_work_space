@@ -6,7 +6,7 @@ import {
   ArrowRight, Users, RefreshCw, Save, Check, Plus, ExternalLink
 } from "lucide-react";
 import {
-  getWorkShareTransfer, saveShareTransferProposal, applyShareTransferToMaster,
+  getWorkShareTransfer, saveShareTransferProposal, approveShareTransferProposal, applyShareTransferToMaster,
   WorkShareTransferResponse, ShareholderBalanceState
 } from "@/lib/api/share-transfers";
 import { ContentCard, StatCard, StatusBadge, LoadingState, Table, Th, Td } from "@/components/SharedUI";
@@ -20,6 +20,7 @@ export default function ShareTransferServicePanel({ workId, onSaved }: ShareTran
   const [data, setData] = useState<WorkShareTransferResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [applying, setApplying] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState("");
   const [applySuccess, setApplySuccess] = useState("");
@@ -192,6 +193,24 @@ export default function ShareTransferServicePanel({ workId, onSaved }: ShareTran
     }
   };
 
+  const handleApproveProposal = async () => {
+    if (!boardApprovalDate && !data?.active_transfer?.board_approval_date) {
+      alert("Please ensure the Board Approval Meeting Date is specified before approval.");
+      return;
+    }
+    setApproving(true);
+    try {
+      const res = await approveShareTransferProposal(workId);
+      setSaveSuccess(res.message || "Proposal successfully approved!");
+      loadData();
+      if (onSaved) onSaved();
+    } catch (err: any) {
+      alert(err.message || "Failed to approve transfer proposal");
+    } finally {
+      setApproving(false);
+    }
+  };
+
   const handleApplyToMaster = async () => {
     if (!confirm("AUTHORIZATION REQUIRED: Are you sure you want to commit this share transfer directly into the Client Master Shareholder Register? This will permanently update share balances.")) {
       return;
@@ -238,11 +257,19 @@ export default function ShareTransferServicePanel({ workId, onSaved }: ShareTran
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {isExecuted && (
+            {isExecuted ? (
               <span className="rounded-xl bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800 border border-emerald-300">
                 EXECUTED IN REGISTER
               </span>
-            )}
+            ) : data.active_transfer?.status === "APPROVED" ? (
+              <span className="rounded-xl bg-blue-100 px-3 py-1 text-xs font-black text-blue-800 border border-blue-300">
+                APPROVED (READY TO APPLY)
+              </span>
+            ) : data.active_transfer ? (
+              <span className="rounded-xl bg-slate-100 px-3 py-1 text-xs font-black text-slate-700 border border-slate-300">
+                DRAFT PROPOSAL
+              </span>
+            ) : null}
             <button
               onClick={loadData}
               className="inline-flex items-center gap-1.5 rounded-xl border border-[#d9e3df] bg-white px-3 py-1.5 text-xs font-bold text-[#181818] hover:bg-[#f9faf9]"
@@ -432,26 +459,48 @@ export default function ShareTransferServicePanel({ workId, onSaved }: ShareTran
 
               {/* Action Buttons */}
               {!isExecuted && (
-                <div className="flex items-center justify-between pt-4 border-t border-[#ece5d9]">
-                  <button
-                    type="button"
-                    onClick={handleSaveProposal}
-                    disabled={saving || reconciliation?.isExceeded}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#447a5d] px-4 py-2 text-xs font-bold text-white hover:bg-[#34624a] transition disabled:opacity-50"
-                  >
-                    <Save size={14} />
-                    {saving ? "Saving..." : "Save Transfer Proposal (Draft)"}
-                  </button>
+                <div className="pt-4 border-t border-[#ece5d9] space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveProposal}
+                        disabled={saving || reconciliation?.isExceeded}
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#447a5d] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#34624a] transition disabled:opacity-50"
+                      >
+                        <Save size={14} />
+                        {saving ? "Saving..." : "Save Draft"}
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={handleApplyToMaster}
-                    disabled={applying || !data.active_transfer}
-                    className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition disabled:opacity-50"
-                  >
-                    <CheckCircle2 size={14} />
-                    {applying ? "Executing..." : "Apply to Shareholder Register"}
-                  </button>
+                      {data.active_transfer && data.active_transfer.status === "DRAFT" && (
+                        <button
+                          type="button"
+                          onClick={handleApproveProposal}
+                          disabled={approving}
+                          className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-amber-700 transition disabled:opacity-50"
+                        >
+                          <ShieldCheck size={14} />
+                          {approving ? "Approving..." : "Approve Proposal (Manager/Admin)"}
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleApplyToMaster}
+                      disabled={applying || !data.active_transfer || data.active_transfer.status !== "APPROVED"}
+                      className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <CheckCircle2 size={14} />
+                      {applying ? "Executing..." : "Apply to Shareholder Register"}
+                    </button>
+                  </div>
+
+                  {data.active_transfer?.status === "DRAFT" && (
+                    <p className="text-[11px] text-amber-700 font-semibold">
+                      * Statutory Gate: Transfer proposal must be approved by authorized Manager/Admin before it can update the member register.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

@@ -8,7 +8,7 @@ from sqlalchemy import select, desc
 
 from ...db.session import get_db
 from ..deps import get_current_user
-from ...models.user import User
+from ...models.user import User, RoleEnum
 from ...models.client import Client
 from ...models.work import Work, WorkChecklist
 from ...models.corporate_history import MortgageChargeHistory
@@ -250,8 +250,18 @@ def apply_mortgage_charge_to_master(
     AUTHORITY ACTION:
     Confirms and permanently commits the registered mortgage/charge status
     into Client Master's Register of Mortgages & Charges.
-    Logs immutable audit record.
+    - Strict role gate: only ADMIN or MANAGER roles authorized.
+    - Strict evidence gate: requires actual RJSC registration date and source-backed filing evidence.
+    - NEVER substitutes today's date for missing registration dates.
+    - Logs immutable audit record.
     """
+    user_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if user_role not in [RoleEnum.ADMIN.value, RoleEnum.MANAGER.value]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized staff: Only ADMIN or MANAGER roles can commit mortgage/charge records to Client Master."
+        )
+
     work = db.get(Work, work_id)
     if not work:
         raise HTTPException(status_code=404, detail="Work order not found")
@@ -267,15 +277,34 @@ def apply_mortgage_charge_to_master(
     if not charge_rec:
         raise HTTPException(status_code=404, detail="No active mortgage/charge record found for this work")
 
-    if charge_rec.charge_type == "SATISFACTION":
-        charge_rec.status = "SATISFIED"
-    elif charge_rec.charge_type == "MODIFICATION":
-        charge_rec.status = "MODIFIED"
-    else:
-        charge_rec.status = "ACTIVE"
+    # Strict Evidence Verification:
+    # 1. Registration Date: Never substitute today's date
+    if charge_rec.charge_type in ["CREATION", "MODIFICATION"]:
+        if not charge_rec.registration_date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot apply mortgage/charge to Client Master: Actual RJSC registration date is missing. Substitution of today's date is strictly prohibited under statutory audit standards."
+            )
+        if not charge_rec.filing_reference or not charge_rec.filing_reference.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot apply mortgage/charge to Client Master: Source-backed registration evidence (filing_reference / RJSC Certificate of Registration number) is required before marking charge as registered or modified."
+            )
+        charge_rec.status = "MODIFIED" if charge_rec.charge_type == "MODIFICATION" else "ACTIVE"
 
-    if not charge_rec.registration_date:
-        charge_rec.registration_date = date.today()
+    elif charge_rec.charge_type == "SATISFACTION":
+        sat_date = charge_rec.satisfaction_date or charge_rec.registration_date
+        if not sat_date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot apply mortgage/charge satisfaction to Client Master: Actual satisfaction date is missing."
+            )
+        if (not charge_rec.satisfaction_noc_ref or not charge_rec.satisfaction_noc_ref.strip()) and (not charge_rec.filing_reference or not charge_rec.filing_reference.strip()):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot apply mortgage/charge satisfaction to Client Master: Source-backed evidence (Bank NOC reference or RJSC satisfaction filing reference) is required before marking charge as satisfied."
+            )
+        charge_rec.status = "SATISFIED"
 
     audit_entry = AuditLog(
         entity_type="mortgage_charges",
@@ -289,7 +318,10 @@ def apply_mortgage_charge_to_master(
             "lender": charge_rec.lender,
             "secured_amount": float(charge_rec.secured_amount),
             "instrument_date": charge_rec.instrument_date.isoformat() if charge_rec.instrument_date else None,
-            "registration_date": charge_rec.registration_date.isoformat(),
+            "registration_date": charge_rec.registration_date.isoformat() if charge_rec.registration_date else None,
+            "satisfaction_date": charge_rec.satisfaction_date.isoformat() if charge_rec.satisfaction_date else None,
+            "filing_reference": charge_rec.filing_reference,
+            "satisfaction_noc_ref": charge_rec.satisfaction_noc_ref,
             "status": charge_rec.status,
             "form_code": charge_rec.statutory_form_code
         }
@@ -301,5 +333,5 @@ def apply_mortgage_charge_to_master(
         "message": f"Mortgage charge successfully committed to Client Master ({charge_rec.status})",
         "charge_id": str(charge_rec.id),
         "status": charge_rec.status,
-        "registration_date": charge_rec.registration_date.isoformat()
+        "registration_date": charge_rec.registration_date.isoformat() if charge_rec.registration_date else (charge_rec.satisfaction_date.isoformat() if charge_rec.satisfaction_date else None)
     }

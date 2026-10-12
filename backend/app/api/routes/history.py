@@ -47,21 +47,24 @@ def create_or_update(model, client_id, db, data, record_id=None):
         
         due = data.get("due_date")
         filed = data.get("filed_date")
+        ack = data.get("acknowledgement_reference")
+        src = data.get("source_evidence")
         if filed:
             data["filing_status"] = "FILED"
-            if due and filed > due and not data.get("late_fee"):
-                delay_days = (filed - due).days
-                data["late_fee"] = float(delay_days * 10)
+            # Require verified acknowledgment or source evidence before marking VERIFIED
+            if (ack and str(ack).strip()) or (src and str(src).strip()):
+                data["evidence_status"] = "VERIFIED"
+            else:
+                data["evidence_status"] = "REVIEW_REQUIRED"
         elif due:
             today = date.today()
             if today > due:
                 data["filing_status"] = "OVERDUE"
-                if not data.get("late_fee"):
-                    data["late_fee"] = float((today - due).days * 10)
             else:
                 data["filing_status"] = "PENDING"
         elif not actual_agm and not filed and not data.get("filing_status"):
             data["filing_status"] = "EVIDENCE_UNCERTAIN"
+            data["evidence_status"] = "EVIDENCE_UNCERTAIN"
 
     # Backward compatibility and statutory fields for MortgageChargeHistory
     if model == MortgageChargeHistory:

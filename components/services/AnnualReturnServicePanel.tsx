@@ -207,12 +207,26 @@ export default function AnnualReturnServicePanel({
                     </Td>
                     <Td>
                       <StatusBadge status={row.filing_status} />
+                      {row.evidence_status === "REVIEW_REQUIRED" && (
+                        <span className="mt-1 block text-[9px] font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 text-center">
+                          Evidence Review
+                        </span>
+                      )}
                     </Td>
                     <Td>
                       {row.delay_days > 0 ? (
                         <div className="text-xs">
                           <span className="font-bold text-amber-700">{row.delay_days} days</span>
-                          <span className="text-[10px] text-[#6c7671] block">Late fee: ৳{row.statutory_late_fee}</span>
+                          <span className="text-[10px] text-[#6c7671] block">
+                            Late fee:{" "}
+                            {typeof row.statutory_late_fee === "number"
+                              ? `৳${row.statutory_late_fee}`
+                              : (
+                                <span className="font-bold text-amber-700">
+                                  {row.statutory_late_fee || "REVIEW_REQUIRED"}
+                                </span>
+                              )}
+                          </span>
                         </div>
                       ) : (
                         <span className="text-xs text-emerald-700 font-medium">On Schedule</span>

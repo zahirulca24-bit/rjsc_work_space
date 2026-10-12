@@ -2,9 +2,7 @@
 
 **Date**: October 13, 2026  
 **Audited Branch**: `feature/core-rjsc-services-batch2`  
-**Commits**:  
-- `035607b` (`feat(batch2): checkpoint Core RJSC Services (Annual Return, Share Transfer, Mortgage & Charge)`)  
-- `644d46c` (`fix(forms_lab): sanitize Decimal and date types in form_parameters JSON storage`)  
+**Base Target**: `feature/za-office-workflow-forms-batch1` (PR #23)  
 **Overall Automated Gate**: **`LOCAL_AUTOMATED_ACCEPTANCE_PASSED`** (100% Tests Green)  
 **Human Visual Review Gate**: **`PENDING_PHYSICAL_STAFF_ACCEPTANCE`**
 
@@ -12,12 +10,15 @@
 
 ## 1. Executive Summary
 
-This document records the acceptance verification of **Batch 2 (Core RJSC Services: Annual Return, Share Transfer, and Mortgage & Charge Registration)**.
+This document records the acceptance verification of **Batch 2 (Core RJSC Services: Annual Return, Share Transfer, and Mortgage & Charge Registration)** including the completion of all **PR #23 Critical Audit Fixes**.
 
-- **Automated Verification**: 100% passed across all 166 backend pytest tests, 100 frontend npm tests, strict TypeScript typechecking, and Next.js production build.
-- **Service Verification**: All three core services (Annual Return, Share Transfer, Mortgage & Charge) were verified end-to-end with automated test fixtures simulating multi-year filings, share rebalancing, and statutory deadline countdowns.
-- **Physical/Human Visual Acceptance**: Separated as **PENDING**. Staff visual inspection of generated PDFs (Schedule X, Form 23B, Form 117, Form XVIII, XIX, XXVIII) on office screens and physical printouts remains required before live client usage.
-- **Data Protection**: Real production database (`backend/dev.db`) and verified client records (`SILVEE AND SINTHEE TRAVEL AGENCY LTD`) were verified and remain completely untouched.
+- **Automated Verification**: 100% passed across all 166 backend pytest tests (including new negative permission, status, and evidence gate tests), 100 frontend npm tests, strict TypeScript typechecking (0 errors), and Next.js production build (23/23 routes compiled).
+- **Core Services Verified**:
+  1. **Annual Return**: Section 36(1) Schedule X deadline (AGM + 21 days), separate tracking of actual AGM date, audit date, DVC date, and filing date. Evidence verification requires official acknowledgment reference or source proof; unapproved hardcoded statutory late-fee formulas removed (returning `REVIEW_REQUIRED`).
+  2. **Share Transfer**: Pre/post mathematical share parity reconciliation, Form 117 generation, strict role gate (`ADMIN` / `MANAGER` only), proposal approval gate (`APPROVED` only, rejecting `DRAFT`), and immutable register apply audit logging.
+  3. **Mortgage & Charge**: Creation/Modification/Satisfaction workflows, Section 159 21-day deadline countdown, Section 171 High Court condonation detection, Forms XVIII/XIX/XXVIII generation, strictly prohibiting auto-substitution of today's date and enforcing verified registration dates and source-backed filing evidence.
+- **Data Protection**: Real production database (`backend/dev.db`) and verified client records (`SILVEE AND SINTHEE TRAVEL AGENCY LTD`) remain completely pristine and untouched.
+- **Physical/Human Visual Acceptance**: Separated as **PENDING**. Office staff inspection of generated PDFs on office screens and physical printouts remains required before live client filing.
 
 ---
 
@@ -25,72 +26,62 @@ This document records the acceptance verification of **Batch 2 (Core RJSC Servic
 
 | Test Layer | Test Count | Result | Details | Status |
 |:---|:---:|:---:|:---|:---:|
-| **Backend Pytest** | **166 passed** | **100% PASS** | Zero failures in 14.05s across Phase 01–07 test suites | **PASS** |
-| **Frontend Jest / tsx** | **100 passed** | **100% PASS** | Zero failures across 9 suites in 1.02s | **PASS** |
+| **Backend Pytest** | **166 passed** | **100% PASS** | Zero failures in 14.03s across Phase 01–07 test suites | **PASS** |
+| **Frontend Jest / tsx** | **100 passed** | **100% PASS** | Zero failures across 9 suites in 1.09s | **PASS** |
 | **TypeScript Typecheck** | **0 errors** | **PASS** | Strict type compliance (`tsc --noEmit`) | **PASS** |
-| **Next.js Production Build** | **23/23 routes** | **PASS** | Production compilation in 4.0s (`next build`) | **PASS** |
-| **Database Integrity** | **dev.db** | **PRESERVED** | Real database untouched (1 client, 1 work) | **PASS** |
-| **Browser Worker Isolation**| **ZA_Browser_Worker**| **ISOLATED** | No files modified or touched outside `rjsc_work_space` | **PASS** |
+| **Next.js Production Build** | **23/23 routes** | **PASS** | Production compilation (`next build`) in 6.1s | **PASS** |
+| **Database Integrity** | **dev.db** | **PRESERVED** | Exactly 1 client, 1 work order (untouched) | **PASS** |
+| **Browser Worker Isolation**| **ZA_Browser_Worker**| **ISOLATED** | Zero files touched outside `rjsc_work_space` | **PASS** |
 
 ---
 
-## 3. Core Service Implementation & Automated Verification
+## 3. PR #23 Critical Audit Fixes Implemented
 
-### Service 1 — Annual Return Workflow (`/api/annual-returns/`)
-- **Multi-Year Assessment (`/api/annual-returns/assessment/{client_id}`)**:
-  - Differentiates previously filed years (`FILED`), overdue years (`OVERDUE`), and evidence-uncertain years (`EVIDENCE_UNCERTAIN`).
-  - Strict statutory deadline computation under Section 36 of the Companies Act, 1994: exactly 21 calendar days following the verified AGM date.
-  - Evidentiary separation: Audit report date and DVC code are tracked independently and are never treated as synthetic proof of an AGM having occurred.
-  - Automatic calculation of delay days and statutory late fees (BDT 10/day base schedule).
-- **Bundled Multi-Year Work Creation (`/api/annual-returns/create-work/{client_id}`)**:
-  - Automatically initializes standard statutory checklists (`AR-CHK-01` through `08`).
-  - Integrates with Forms Lab to generate upload-ready **Schedule X**, **Form 23B**, and **Form XII**.
-- **UI Workspace**:
-  - Mounted via `AnnualReturnServicePanel.tsx` in both the Client Profile tabs and the Work Register detail specialized workspace.
+### Audit Fix 1 — Share Transfer Apply Role & Approval Gate
+- **Role Enforcement**: `apply_share_transfer_to_master` and `approve_share_transfer_proposal` explicitly require `RoleEnum.ADMIN` or `RoleEnum.MANAGER`. Unauthorized roles (`JUNIOR`, `SENIOR`) are strictly rejected with HTTP 403 Forbidden.
+- **Status Gate**: Transfer proposals in `DRAFT` or unapproved status are rejected with HTTP 400 Bad Request. Only proposals verified with board resolution and approved (`status == "APPROVED"`) can update the shareholder register.
+- **New Approval Endpoint**: `POST /api/share-transfers/work/{work_id}/approve` allows authorized managers/admins to verify board minutes and transition proposals from `DRAFT` to `APPROVED`.
+- **Negative Tests Added**:
+  - `JUNIOR` attempting `/apply` -> 403 Forbidden.
+  - `ADMIN` attempting `/apply` while in `DRAFT` -> 400 Bad Request.
+  - `JUNIOR` attempting `/approve` -> 403 Forbidden.
+  - Re-applying already executed transfer -> 400 Bad Request.
 
-### Service 2 — Share Transfer Workflow (`/api/share-transfers/`)
-- **Shareholding Balance & Parity Reconciliation (`/api/share-transfers/work/{work_id}`)**:
-  - Reconciles transferor shareholdings against the Client Master register before accepting transfer proposals.
-  - Automatically rejects proposals if the transferor possesses insufficient shares (HTTP 400).
-  - Captures transferor, transferee, addresses, share count, nominal value, paid-up amount, consideration, and distinctive number ranges.
-- **Form 117 PDF Generation (`/api/forms-lab/generate/{work_id}/FORM_117`)**:
-  - Generates upload-ready Form 117 transfer deed with pixel-aligned coordinate overlays.
-  - Translates share count into standard English words (*e.g., "500 (Five Hundred)"*).
-  - Masks outdated century artifacts (`"2003"`) and positions signature lines for transferor, transferee, and Managing Director.
-- **Authorized Execution (`/api/share-transfers/work/{work_id}/apply`)**:
-  - Authorized action mutates the Client Master shareholder register (`shareholders` table), decreasing transferor shares, adding/updating transferee shares, and strictly preserving total issued share capital.
-  - Logged with immutable audit trail.
-- **UI Workspace**:
-  - Mounted via `ShareTransferServicePanel.tsx` in Work Register detail.
+### Audit Fix 2 — Mortgage Apply Strict Registration Evidence
+- **Prohibition of Auto-Substitution**: Removed `if not charge_rec.registration_date: charge_rec.registration_date = date.today()`. Today's date is never substituted for missing registration dates.
+- **Mandatory Registration Date**: Applying without verified actual RJSC registration date is rejected with HTTP 400 Bad Request.
+- **Source-Backed Evidence Gate**: Applying without source-backed filing evidence (`filing_reference` / RJSC Certificate of Registration number) is rejected with HTTP 400 Bad Request.
+- **Satisfaction Gate**: Applying charge satisfaction requires verified satisfaction date and source-backed evidence (Bank NOC reference or RJSC satisfaction filing reference); missing evidence is rejected with HTTP 400.
+- **Role Enforcement**: Only authorized roles (`ADMIN` or `MANAGER`) can commit charges into Client Master.
+- **Negative Tests Added**:
+  - Creation apply without registration date -> 400 Bad Request.
+  - Creation apply with registration date but missing filing reference -> 400 Bad Request.
+  - Unauthorized staff (`JUNIOR`) attempting apply -> 403 Forbidden.
+  - Satisfaction apply without Bank NOC ref or filing ref -> 400 Bad Request.
 
-### Service 3 — Mortgage & Charge Registration (`/api/mortgage-charges/`)
-- **Statutory 21-Day Countdown & Section 171 Detection (`/api/mortgage-charges/work/{work_id}`)**:
-  - Evaluates deed/instrument date against Section 159 of the Companies Act, 1994 (must be registered within 21 calendar days of instrument execution).
-  - Flags expired deeds (>21 days) with a mandatory High Court condonation requirement under Section 171.
-  - Tracks lender, secured amount, instrument type, property description, sanction letter reference, and sanction date.
-- **RJSC Forms Generation**:
-  - **Form XVIII**: Particulars of Mortgage or Charge Creation (1 page).
-  - **Form XIX**: Particulars of Charge Modification (2 pages).
-  - **Form XXVIII**: Declaration of Verification of Satisfaction of Charge (1 page).
-- **Authorized Execution (`/api/mortgage-charges/work/{work_id}/apply`)**:
-  - Commits verified charge records into Client Master (`mortgage_charges` table) upon completion.
-- **UI Workspace**:
-  - Mounted via `MortgageChargeServicePanel.tsx` in Work Register detail.
+### Audit Fix 3 — Annual Return Provenance & Late-Fee Remediation
+- **Evidence Verification Provenance**: Populating a `filed_date` no longer marks evidence `VERIFIED` automatically. The system requires an official `acknowledgement_reference` or verified `source_evidence`. Filings lacking acknowledgment reference return `REVIEW_REQUIRED`.
+- **Late-Fee Remediation**: Removed unapproved hardcoded statutory late-fee formula (`delay_days * 10`). Delayed/overdue filings return `statutory_late_fee: "REVIEW_REQUIRED"` until legally validated penalty rules are configured.
+- **Database Hygiene**: `create_or_update` in `history.py` no longer calculates or writes unapproved `delay_days * 10` into the `late_fee` database column.
+
+### Audit Fix 4 — Strict Evidentiary Separation & AGM Non-Inference
+- **No AGM Date Inference**: Actual AGM dates are never inferred from financial-year strings (*e.g. "2022-2023"*), audit report dates, or DVC codes.
+- **Pending Signed Minutes**: In the absence of signed AGM minutes (`status == "HELD"`), `actual_agm_date` and Section 36 `due_date` remain `None`, with statutory notes indicating that filing deadline calculation is pending verified signed AGM minutes.
 
 ---
 
 ## 4. Pending Human Visual & Office Acceptance Items
 
-The following physical and human checks remain required before operational sign-off:
+The following physical checks remain required before final operational sign-off:
 
 1. **[ ] Form 117 Stamp Duty & Execution Inspection**:
-   - Human inspection of generated Form 117 PDF to ensure consideration and stamp duty figures comply with current Bangladesh Stamp Act provisions.
+   - Human inspection of generated Form 117 PDF on screen and printed format to ensure consideration and non-judicial stamp duty figures comply with current Bangladesh Stamp Act rates.
    - Verify that transferor and transferee addresses are clearly aligned within designated boxes without text collision.
 2. **[ ] Mortgage Forms XVIII / XIX / XXVIII Visual Review**:
-   - Verify that property legal description (*Schedule of Property*) wraps correctly in Form XVIII without crossing footer margins.
+   - Verify that property legal description (*Schedule of Property*) wraps correctly in Form XVIII without crossing margins.
    - Verify that lender particulars and sanction details on Form XIX Page 1 & 2 align with bank sanction letter specs.
    - Verify that Form XXVIII (Satisfaction) correctly renders lender satisfaction date and NOC reference.
 3. **[ ] Multi-Year Annual Return Bulk Review**:
-   - Staff to review the multi-year assessment table in UI for a test company with 3 pending years to ensure late fee calculations match manual audit worksheets.
+   - Staff to review the multi-year assessment table in UI for a test company with 3 pending years.
 4. **[ ] End-to-End Test with Browser Agent**:
-   - Coordinate with the independent Browser Agent team to perform UI-driven filing simulations on sandbox datasets.
+   - Coordinate with the independent Browser Agent team to perform portal preparation review on sandbox datasets.

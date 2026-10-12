@@ -1,9 +1,28 @@
 import pytest
+import uuid
 from datetime import date, timedelta
 from fastapi.testclient import TestClient
 from app.main import app
+from app.models.user import RoleEnum
+from app.api.deps import get_current_user
 
 client = TestClient(app)
+
+class JuniorUser:
+    def __init__(self):
+        self.id = uuid.UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+        self.role = RoleEnum.JUNIOR
+        self.is_active = True
+        self.email = "junior@example.com"
+        self.name = "Test Junior"
+
+class AdminUser:
+    def __init__(self):
+        self.id = uuid.UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+        self.role = RoleEnum.ADMIN
+        self.is_active = True
+        self.email = "admin@example.com"
+        self.name = "Test Admin"
 
 def test_annual_return_assessment_and_work_creation():
     # 1. Create Client
@@ -11,13 +30,13 @@ def test_annual_return_assessment_and_work_creation():
         "legal_name": "Acceptance Testing Annual Return Ltd",
         "entity_type": "PRIVATE_COMPANY",
         "registration_no": "C-998877",
-        "incorporation_date": "2021-01-15T00:00:00"
+        "incorporation_date": "2020-01-15T00:00:00"
     })
     assert c_resp.status_code == 200
     client_id = c_resp.json()["id"]
 
     # 2. Add AGM history & Annual return history
-    # FY 2021-2022: FILED
+    # FY 2021-2022: FILED with verified acknowledgment reference
     client.post(f"/api/clients/{client_id}/agm-history", json={
         "financial_year": "2021-2022",
         "agm_date": "2022-12-15",
@@ -32,7 +51,22 @@ def test_annual_return_assessment_and_work_creation():
         "acknowledgement_reference": "AR-2022-9988"
     })
 
+    # FY 2020-2021: FILED date present BUT lacks acknowledgement reference and source evidence!
+    # Audit Rule: Do not mark filing evidence VERIFIED merely because a filing date is populated.
+    client.post(f"/api/clients/{client_id}/agm-history", json={
+        "financial_year": "2020-2021",
+        "agm_date": "2021-12-10",
+        "status": "HELD"
+    })
+    client.post(f"/api/clients/{client_id}/annual-returns", json={
+        "financial_year": "2020-2021",
+        "actual_agm_date": "2021-12-10",
+        "filed_date": "2021-12-25"
+        # No acknowledgement_reference or source_evidence provided!
+    })
+
     # FY 2022-2023: OVERDUE (AGM held in Dec 2023, not filed)
+    # Audit Rule: Remove unapproved hardcoded late fees; return REVIEW_REQUIRED
     client.post(f"/api/clients/{client_id}/agm-history", json={
         "financial_year": "2022-2023",
         "agm_date": "2023-12-10",
@@ -51,21 +85,34 @@ def test_annual_return_assessment_and_work_creation():
     ass_data = ass_resp.json()
 
     assert ass_data["client_id"] == client_id
-    assert ass_data["filed_count"] >= 1
+    assert ass_data["filed_count"] >= 2
     assert ass_data["overdue_count"] >= 1
 
-    # Find FY 2021-2022
+    # Verify FY 2021-2022 (Verified with Acknowledgment)
     y_21 = next(y for y in ass_data["assessment"] if y["financial_year"] == "2021-2022")
     assert y_21["filing_status"] == "FILED"
+    assert y_21["evidence_status"] == "VERIFIED"
     assert y_21["dvc_code"] == "221120CA9988"
     assert y_21["delay_days"] == 0
+    assert y_21["statutory_late_fee"] == 0.0
 
-    # Find FY 2022-2023
+    # Verify FY 2020-2021 (Unevidenced Filing Date -> REVIEW_REQUIRED)
+    y_20 = next(y for y in ass_data["assessment"] if y["financial_year"] == "2020-2021")
+    assert y_20["filing_status"] == "FILED"
+    assert y_20["evidence_status"] == "REVIEW_REQUIRED"
+
+    # Verify FY 2022-2023 (Overdue -> statutory_late_fee == "REVIEW_REQUIRED")
     y_22 = next(y for y in ass_data["assessment"] if y["financial_year"] == "2022-2023")
     assert y_22["filing_status"] == "OVERDUE"
     assert y_22["due_date"] == "2023-12-31" # 2023-12-10 + 21 days
     assert y_22["delay_days"] > 0
-    assert y_22["statutory_late_fee"] > 0
+    assert y_22["statutory_late_fee"] == "REVIEW_REQUIRED"
+
+    # Verify an unevidenced future year: actual AGM date must NOT be inferred from FY string
+    y_curr = next(y for y in ass_data["assessment"] if y["financial_year"] == "2023-2024")
+    assert y_curr["actual_agm_date"] is None
+    assert y_curr["due_date"] is None
+    assert y_curr["filing_status"] == "EVIDENCE_UNCERTAIN"
 
     # 4. Create Multi-year Annual Return Work Order
     create_work_resp = client.post(f"/api/annual-returns/create-work/{client_id}", json={
@@ -129,7 +176,7 @@ def test_share_transfer_reconciliation_and_authorized_apply():
     assert bad_resp.status_code == 400
     assert "insufficient" in bad_resp.json()["detail"].lower()
 
-    # 3. Test Valid Transfer Proposal: Rahim transfers 200 shares to Zahirul Islam
+    # 3. Test Valid Transfer Proposal: Rahim transfers 200 shares to Zahirul Islam (saved as DRAFT)
     prop_resp = client.post(f"/api/share-transfers/work/{work_id}", json={
         "transferor_name": "Rahim Ahmed",
         "transferee_name": "Zahirul Islam",
@@ -143,27 +190,45 @@ def test_share_transfer_reconciliation_and_authorized_apply():
     })
     assert prop_resp.status_code == 200
     prop_data = prop_resp.json()
+    assert prop_data["status"] == "DRAFT"
     assert prop_data["total_shares_reconciled"] == 1000.0
 
-    # Verify that Master Register has NOT been altered yet
-    hist_resp = client.get(f"/api/clients/{client_id}/history")
-    shs = hist_resp.json()["shareholders"]
-    rahim_sh = next(s for s in shs if s["shareholder_name"] == "Rahim Ahmed")
-    assert float(rahim_sh["share_count"]) == 700 # Unchanged!
+    # 4. NEGATIVE PERMISSION TEST: Unauthorized staff (JUNIOR) attempting apply is rejected with 403
+    app.dependency_overrides[get_current_user] = lambda: JuniorUser()
+    apply_junior = client.post(f"/api/share-transfers/work/{work_id}/apply")
+    assert apply_junior.status_code == 403
+    assert "unauthorized" in apply_junior.json()["detail"].lower()
 
-    # 4. Generate Form 117 PDF from this work
+    # 5. NEGATIVE STATUS TEST: Authorized staff (ADMIN) attempting apply while status is DRAFT is rejected with 400
+    app.dependency_overrides[get_current_user] = lambda: AdminUser()
+    apply_draft = client.post(f"/api/share-transfers/work/{work_id}/apply")
+    assert apply_draft.status_code == 400
+    assert "approved" in apply_draft.json()["detail"].lower()
+
+    # 6. NEGATIVE APPROVAL TEST: Unauthorized staff (JUNIOR) attempting approve is rejected with 403
+    app.dependency_overrides[get_current_user] = lambda: JuniorUser()
+    appr_junior = client.post(f"/api/share-transfers/work/{work_id}/approve")
+    assert appr_junior.status_code == 403
+
+    # 7. AUTHORIZED APPROVAL: ADMIN approves the proposal after board approval verification
+    app.dependency_overrides[get_current_user] = lambda: AdminUser()
+    appr_admin = client.post(f"/api/share-transfers/work/{work_id}/approve")
+    assert appr_admin.status_code == 200
+    assert appr_admin.json()["status"] == "APPROVED"
+
+    # 8. Generate Form 117 PDF from this work
     gen_resp = client.post(f"/api/forms-lab/generate/{work_id}/FORM_117", json={})
     assert gen_resp.status_code == 200
     assert gen_resp.json()["form_code"] == "FORM_117"
     assert gen_resp.json()["page_count"] == 1
 
-    # 5. Execute Authorized Apply
+    # 9. Execute Authorized Apply
     apply_resp = client.post(f"/api/share-transfers/work/{work_id}/apply")
     assert apply_resp.status_code == 200
     apply_data = apply_resp.json()
     assert apply_data["status"] == "EXECUTED_IN_REGISTER"
 
-    # Verify Master Register IS NOW UPDATED
+    # 10. Verify Master Register IS NOW UPDATED
     hist_resp_after = client.get(f"/api/clients/{client_id}/history")
     shs_after = hist_resp_after.json()["shareholders"]
     rahim_after = next(s for s in shs_after if s["shareholder_name"] == "Rahim Ahmed")
@@ -171,6 +236,10 @@ def test_share_transfer_reconciliation_and_authorized_apply():
 
     zahirul_after = next(s for s in shs_after if s["shareholder_name"] == "Zahirul Islam")
     assert float(zahirul_after["share_count"]) == 200 # New shareholder added
+
+    # 11. Re-execution of already executed transfer is rejected with 400
+    apply_reexec = client.post(f"/api/share-transfers/work/{work_id}/apply")
+    assert apply_reexec.status_code == 400
 
 def test_mortgage_charge_deadline_and_forms_generation():
     # 1. Create Client
@@ -251,7 +320,60 @@ def test_mortgage_charge_deadline_and_forms_generation():
     assert gen_xxviii.json()["form_code"] == "FORM_XXVIII"
     assert gen_xxviii.json()["page_count"] == 1
 
-    # 7. Apply to Master
+    # 7. NEGATIVE TEST: Attempting to apply without registration date is rejected (No defaulting to today)
+    app_no_date = client.post(f"/api/mortgage-charges/work/{work_id}/apply")
+    assert app_no_date.status_code == 400
+    assert "actual rjsc registration date is missing" in app_no_date.json()["detail"].lower()
+
+    # 8. NEGATIVE TEST: Attempting to apply without source-backed filing evidence is rejected
+    client.post(f"/api/mortgage-charges/work/{work_id}", json={
+        "charge_type": "CREATION",
+        "lender": "Eastern Bank PLC",
+        "secured_amount": 25000000.0,
+        "instrument_date": fresh_date,
+        "registration_date": "2024-06-15"
+        # No filing_reference!
+    })
+    app_no_ref = client.post(f"/api/mortgage-charges/work/{work_id}/apply")
+    assert app_no_ref.status_code == 400
+    assert "source-backed registration evidence" in app_no_ref.json()["detail"].lower()
+
+    # 9. NEGATIVE PERMISSION TEST: Unauthorized staff (JUNIOR) attempting apply is rejected with 403
+    client.post(f"/api/mortgage-charges/work/{work_id}", json={
+        "charge_type": "CREATION",
+        "lender": "Eastern Bank PLC",
+        "secured_amount": 25000000.0,
+        "instrument_date": fresh_date,
+        "registration_date": "2024-06-15",
+        "filing_reference": "RJSC-CHG-2024-8899"
+    })
+    app.dependency_overrides[get_current_user] = lambda: JuniorUser()
+    app_junior = client.post(f"/api/mortgage-charges/work/{work_id}/apply")
+    assert app_junior.status_code == 403
+
+    # 10. AUTHORIZED APPLY: With verified date and filing evidence committed by ADMIN
+    app.dependency_overrides[get_current_user] = lambda: AdminUser()
     app_resp = client.post(f"/api/mortgage-charges/work/{work_id}/apply")
     assert app_resp.status_code == 200
     assert app_resp.json()["status"] == "ACTIVE"
+    assert app_resp.json()["registration_date"] == "2024-06-15" # Preserves verified date, not today!
+
+    # 11. SATISFACTION NEGATIVE TEST: Satisfaction without NOC ref or filing ref is rejected
+    w2_resp = client.post("/api/works", json={
+        "work_code": "ignored",
+        "client_id": client_id,
+        "service_id": "mortgage-charge",
+        "entity_type": "PRIVATE_COMPANY",
+        "status": "PENDING"
+    })
+    w2_id = w2_resp.json()["id"]
+    client.post(f"/api/mortgage-charges/work/{w2_id}", json={
+        "charge_type": "SATISFACTION",
+        "lender": "Eastern Bank PLC",
+        "secured_amount": 25000000.0,
+        "satisfaction_date": "2024-09-01"
+        # Missing satisfaction_noc_ref and filing_reference!
+    })
+    sat_bad = client.post(f"/api/mortgage-charges/work/{w2_id}/apply")
+    assert sat_bad.status_code == 400
+    assert "source-backed evidence" in sat_bad.json()["detail"].lower()

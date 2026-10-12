@@ -30,6 +30,8 @@ export default function MortgageChargeServicePanel({ workId, onSaved }: Mortgage
   const [securedAmount, setSecuredAmount] = useState<number>(10000000);
   const [instrumentType, setInstrumentType] = useState("Deed of Mortgage / Letter of Hypothecation");
   const [instrumentDate, setInstrumentDate] = useState("");
+  const [registrationDate, setRegistrationDate] = useState("");
+  const [filingReference, setFilingReference] = useState("");
   const [propertyDescription, setPropertyDescription] = useState("");
   const [modificationDetails, setModificationDetails] = useState("");
   const [satisfactionDate, setSatisfactionDate] = useState("");
@@ -50,6 +52,8 @@ export default function MortgageChargeServicePanel({ workId, onSaved }: Mortgage
         setSecuredAmount(ac.secured_amount);
         setInstrumentType(ac.instrument_type || "Deed of Mortgage / Letter of Hypothecation");
         setInstrumentDate(ac.instrument_date || "");
+        setRegistrationDate(ac.registration_date || "");
+        setFilingReference(ac.filing_reference || "");
         setPropertyDescription(ac.property_description || "");
         setModificationDetails(ac.modification_details || "");
         setSatisfactionDate(ac.satisfaction_date || "");
@@ -86,6 +90,8 @@ export default function MortgageChargeServicePanel({ workId, onSaved }: Mortgage
         secured_amount: securedAmount,
         instrument_type: instrumentType || undefined,
         instrument_date: instrumentDate || undefined,
+        registration_date: registrationDate || undefined,
+        filing_reference: filingReference || undefined,
         property_description: propertyDescription || undefined,
         modification_details: modificationDetails || undefined,
         satisfaction_date: satisfactionDate || undefined,
@@ -103,6 +109,26 @@ export default function MortgageChargeServicePanel({ workId, onSaved }: Mortgage
   };
 
   const handleCommitToMaster = async () => {
+    if (chargeType !== "SATISFACTION") {
+      if (!registrationDate && !data?.active_charge?.registration_date) {
+        alert("Cannot commit to Register: Actual RJSC registration date is missing. Substitution of today's date is strictly prohibited.");
+        return;
+      }
+      if (!filingReference && !data?.active_charge?.filing_reference) {
+        alert("Cannot commit to Register: Source-backed registration evidence (filing reference / certificate number) is required.");
+        return;
+      }
+    } else {
+      if (!satisfactionDate && !data?.active_charge?.satisfaction_date) {
+        alert("Cannot commit satisfaction: Actual satisfaction date is missing.");
+        return;
+      }
+      if (!satisfactionNocRef && !data?.active_charge?.satisfaction_noc_ref && !filingReference && !data?.active_charge?.filing_reference) {
+        alert("Cannot commit satisfaction: Source-backed evidence (Bank NOC reference or filing reference) is required.");
+        return;
+      }
+    }
+
     if (!confirm("AUTHORIZATION REQUIRED: Commit this charge registration to the permanent Client Master Register of Mortgages & Charges?")) {
       return;
     }
@@ -325,6 +351,39 @@ export default function MortgageChargeServicePanel({ workId, onSaved }: Mortgage
                 </div>
               )}
 
+              {/* Actual RJSC Registration Evidence (Required for Master Commit) */}
+              <div className="rounded-xl border border-[#d9e3df] bg-[#f9faf9] p-3 space-y-3">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#181818]">
+                  <ShieldCheck size={14} className="text-[#447a5d]" />
+                  <span>RJSC Registration & Evidence Particulars (Required for Commit)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-[#6c7671] mb-1">
+                      Actual RJSC Registration Date
+                    </label>
+                    <input
+                      type="date"
+                      value={registrationDate}
+                      onChange={(e) => setRegistrationDate(e.target.value)}
+                      className="w-full rounded-xl border border-[#d9e3df] bg-white px-3 py-2 text-xs font-semibold text-[#181818] outline-none focus:border-[#447a5d]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-[#6c7671] mb-1">
+                      Registration / Certificate Ref
+                    </label>
+                    <input
+                      type="text"
+                      value={filingReference}
+                      onChange={(e) => setFilingReference(e.target.value)}
+                      placeholder="e.g. RJSC-CHG-2024-5544"
+                      className="w-full rounded-xl border border-[#d9e3df] bg-white px-3 py-2 text-xs font-semibold text-[#181818] outline-none focus:border-[#447a5d]"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {saveSuccess && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 font-bold">
                   {saveSuccess}
@@ -338,26 +397,31 @@ export default function MortgageChargeServicePanel({ workId, onSaved }: Mortgage
               )}
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-between pt-4 border-t border-[#ece5d9]">
-                <button
-                  type="button"
-                  onClick={handleSaveParticulars}
-                  disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#447a5d] px-4 py-2 text-xs font-bold text-white hover:bg-[#34624a] transition disabled:opacity-50"
-                >
-                  <Save size={14} />
-                  {saving ? "Saving..." : "Save Particulars"}
-                </button>
+              <div className="pt-4 border-t border-[#ece5d9] space-y-2">
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={handleSaveParticulars}
+                    disabled={saving}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#447a5d] px-4 py-2 text-xs font-bold text-white hover:bg-[#34624a] transition disabled:opacity-50"
+                  >
+                    <Save size={14} />
+                    {saving ? "Saving..." : "Save Particulars"}
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={handleCommitToMaster}
-                  disabled={committing || !data.active_charge}
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition disabled:opacity-50"
-                >
-                  <CheckCircle2 size={14} />
-                  {committing ? "Committing..." : "Commit to Mortgage Register"}
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleCommitToMaster}
+                    disabled={committing || !data.active_charge}
+                    className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 transition disabled:opacity-50"
+                  >
+                    <CheckCircle2 size={14} />
+                    {committing ? "Committing..." : "Commit to Mortgage Register"}
+                  </button>
+                </div>
+                <p className="text-[11px] text-[#6c7671]">
+                  * Statutory Audit Rule: Actual RJSC registration date and certificate reference are strictly required before committing to the Client Master. Today&apos;s date will never be auto-substituted.
+                </p>
               </div>
             </div>
           </ContentCard>

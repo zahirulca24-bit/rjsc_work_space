@@ -89,6 +89,18 @@ export async function saveShareTransferProposal(
   return res.json();
 }
 
+export async function approveShareTransferProposal(workId: string): Promise<any> {
+  const res = await fetchApi(`/api/share-transfers/work/${workId}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" }
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.detail || "Failed to approve share transfer proposal");
+  }
+  return res.json();
+}
+
 export async function applyShareTransferToMaster(workId: string): Promise<any> {
   const res = await fetchApi(`/api/share-transfers/work/${workId}/apply`, {
     method: "POST",

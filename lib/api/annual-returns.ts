@@ -11,7 +11,7 @@ export interface AnnualReturnAssessmentYear {
   filing_status: "FILED" | "PENDING" | "OVERDUE" | "EVIDENCE_UNCERTAIN";
   evidence_status: string;
   delay_days: number;
-  statutory_late_fee: number;
+  statutory_late_fee: number | string | null;
   acknowledgement_reference: string | null;
   source_evidence: string | null;
   statutory_basis: string;

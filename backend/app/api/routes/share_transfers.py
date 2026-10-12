@@ -31,6 +31,7 @@ class ShareTransferProposalRequest(BaseModel):
     execution_date: Optional[date] = None
     board_approval_date: Optional[date] = None
     transfer_no: Optional[str] = "1"
+    status: Optional[str] = "DRAFT"
     source_evidence: Optional[str] = None
     notes: Optional[str] = None
 
@@ -268,6 +269,54 @@ def save_share_transfer_proposal(
         "post_transfer_state": post_state
     }
 
+@router.post("/work/{work_id}/approve")
+def approve_share_transfer_proposal(
+    work_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    AUTHORITY ACTION:
+    Approves a Share Transfer proposal after verifying Board Resolution and statutory requirements.
+    Only ADMIN or MANAGER roles can approve.
+    """
+    user_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if user_role not in [RoleEnum.ADMIN.value, RoleEnum.MANAGER.value]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized staff: Only ADMIN or MANAGER roles can approve share transfer proposals."
+        )
+
+    work = db.get(Work, work_id)
+    if not work:
+        raise HTTPException(status_code=404, detail="Work order not found")
+
+    transfer_rec = db.query(ShareTransferHistory).filter(
+        ShareTransferHistory.work_id == work_id
+    ).first()
+
+    if not transfer_rec:
+        raise HTTPException(status_code=404, detail="No active share transfer record found for this work")
+
+    if transfer_rec.status == "EXECUTED_IN_REGISTER":
+        raise HTTPException(status_code=400, detail="Cannot alter status: transfer already executed in register")
+
+    if not transfer_rec.board_approval_date and not transfer_rec.source_evidence:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot approve transfer: Board approval date or source evidence document is required before approval."
+        )
+
+    transfer_rec.status = "APPROVED"
+    db.commit()
+    db.refresh(transfer_rec)
+
+    return {
+        "message": "Share transfer proposal successfully approved",
+        "transfer_id": str(transfer_rec.id),
+        "status": transfer_rec.status
+    }
+
 @router.post("/work/{work_id}/apply")
 def apply_share_transfer_to_master(
     work_id: uuid.UUID,
@@ -277,10 +326,19 @@ def apply_share_transfer_to_master(
     """
     AUTHORITY ACTION:
     Applies the approved share transfer directly to Client Master's shareholder register.
+    - Strict role gate: only ADMIN or MANAGER roles are authorized.
+    - Strict status gate: rejects DRAFT or unapproved transfers.
     - Mutates the `shareholders` table with strict reconciliation.
     - Marks `ShareTransferHistory.status = 'EXECUTED_IN_REGISTER'`.
     - Creates an immutable AuditLog entry with before/after state.
     """
+    user_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if user_role not in [RoleEnum.ADMIN.value, RoleEnum.MANAGER.value]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized staff: Only ADMIN or MANAGER roles can apply share transfers to the shareholder register."
+        )
+
     work = db.get(Work, work_id)
     if not work:
         raise HTTPException(status_code=404, detail="Work order not found")
@@ -298,6 +356,13 @@ def apply_share_transfer_to_master(
 
     if transfer_rec.status == "EXECUTED_IN_REGISTER":
         raise HTTPException(status_code=400, detail="This share transfer has already been executed into the shareholder register")
+
+    # Reject drafts, unapproved transfers, or cancelled transfers
+    if transfer_rec.status != "APPROVED":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Transfer cannot be executed: Transfer proposal status is '{transfer_rec.status}'. Only 'APPROVED' transfer proposals with verified board authorization can update the shareholder register."
+        )
 
     # Fetch current active shareholders
     current_shareholders = db.query(Shareholder).filter(

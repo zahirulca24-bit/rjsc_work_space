@@ -90,7 +90,12 @@ def get_annual_return_assessment(
         ar = ar_by_year.get(fy)
         agm = agm_by_year.get(fy)
 
-        actual_agm_date = ar.actual_agm_date if (ar and ar.actual_agm_date) else (agm.agm_date if agm else None)
+        actual_agm_date = None
+        if ar and ar.actual_agm_date:
+            actual_agm_date = ar.actual_agm_date
+        elif agm and agm.agm_date and agm.status == "HELD":
+            actual_agm_date = agm.agm_date
+
         audit_report_date = ar.audit_report_date if ar else None
         dvc_date = ar.dvc_date if ar else None
         dvc_code = ar.dvc_code if ar else None
@@ -105,12 +110,19 @@ def get_annual_return_assessment(
 
         delay_days = 0
         status_val = "EVIDENCE_UNCERTAIN"
-        evidence_status = ar.evidence_status if ar else ("VERIFIED" if agm and agm.status == "HELD" else "EVIDENCE_UNCERTAIN")
+        evidence_status = "EVIDENCE_UNCERTAIN"
 
         if filed_date:
             status_val = "FILED"
-            evidence_status = "VERIFIED"
             filed_count += 1
+            # Provenance / Acknowledgment verification:
+            # Merely having a filed_date does NOT make evidence VERIFIED.
+            # Require acknowledgment reference or verified source evidence document.
+            if (ack_ref and ack_ref.strip()) or (source_ev and source_ev.strip()):
+                evidence_status = "VERIFIED"
+            else:
+                evidence_status = "REVIEW_REQUIRED"
+
             if due_date and filed_date > due_date:
                 delay_days = (filed_date - due_date).days
         elif actual_agm_date and due_date:
@@ -121,22 +133,34 @@ def get_annual_return_assessment(
             else:
                 status_val = "PENDING"
                 pending_count += 1
+            evidence_status = "PENDING_REVIEW" if (source_ev or (agm and agm.source_document)) else "EVIDENCE_UNCERTAIN"
         else:
             status_val = "EVIDENCE_UNCERTAIN"
+            evidence_status = "EVIDENCE_UNCERTAIN"
             uncertain_count += 1
 
-        statutory_late_fee = float(delay_days * 10) if delay_days > 0 else 0.0
-        if ar and ar.late_fee and float(ar.late_fee) > 0:
-            statutory_late_fee = float(ar.late_fee)
+        # Statutory Late Fee Remediation:
+        # Unapproved hardcoded formula (delay_days * 10) is removed.
+        # Return "REVIEW_REQUIRED" for overdue/delayed filings until legally validated fee rules are configured.
+        if delay_days > 0:
+            statutory_late_fee = "REVIEW_REQUIRED"
+        else:
+            statutory_late_fee = 0.0
 
         statutory_notes = []
-        if actual_agm_date:
+        if actual_agm_date and due_date:
             statutory_notes.append(f"Sec 36 Deadline: {due_date.isoformat()} (AGM {actual_agm_date.isoformat()} + 21 days)")
         else:
-            statutory_notes.append("Actual AGM date unverified; filing deadline pending signed AGM minutes.")
+            statutory_notes.append("Actual AGM date unverified; filing deadline pending signed AGM minutes (cannot be inferred from financial year or audit date).")
 
         if dvc_code:
             statutory_notes.append(f"Audit DVC verified: {dvc_code}")
+
+        if filed_date and evidence_status == "REVIEW_REQUIRED":
+            statutory_notes.append("Filing unevidenced: Missing official RJSC acknowledgment reference or source proof (REVIEW_REQUIRED).")
+
+        if delay_days > 0:
+            statutory_notes.append(f"Delayed by {delay_days} days. Statutory late fee: REVIEW_REQUIRED (statutory penalty schedule requires legal validation).")
 
         assessment_list.append({
             "financial_year": fy,
