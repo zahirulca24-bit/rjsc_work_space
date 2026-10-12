@@ -119,11 +119,37 @@ export const services: RJSCServiceRule[] = [
     sourceStatus: 'NEEDS_SOURCE_REVIEW'
   },
   {
+    id: 'share-transfer',
+    serviceName: 'Share Transfer (Form 117)',
+    entityTypes: [EntityType.PRIVATE_COMPANY, EntityType.PUBLIC_COMPANY],
+    category: 'Returns',
+    description: 'Transfer of shares, pre/post reconciliation and Form 117 execution.',
+    requiredDocuments: ['DOC_FORM_117', 'DOC_SHARE_TRANSFER_DEED', 'DOC_DIR_MEETING_MINUTES'],
+    checklist: [],
+    deadlineRuleId: null,
+    nextAction: null,
+    legalReferences: ['COMPANIES_ACT_1994_SEC_38', 'RJSC_RETURN_FEE_SCHEDULE'],
+    sourceStatus: 'VERIFIED'
+  },
+  {
     id: 'mortgage-charge-registration',
     serviceName: 'Mortgage / Charge Registration',
     entityTypes: [EntityType.PRIVATE_COMPANY, EntityType.PUBLIC_COMPANY, EntityType.FOREIGN_COMPANY, EntityType.TRADE_ORGANIZATION],
     category: 'Mortgage',
-    description: 'Registration of mortgage or charge.',
+    description: 'Registration, modification or satisfaction of mortgage or charge.',
+    requiredDocuments: [],
+    checklist: [],
+    deadlineRuleId: null,
+    nextAction: null,
+    legalReferences: ['RJSC_FEE_GAZETTE_2023'],
+    sourceStatus: 'VERIFIED'
+  },
+  {
+    id: 'mortgage-charge',
+    serviceName: 'Mortgage / Charge Registration (Sec 159/160/169)',
+    entityTypes: [EntityType.PRIVATE_COMPANY, EntityType.PUBLIC_COMPANY, EntityType.FOREIGN_COMPANY, EntityType.TRADE_ORGANIZATION],
+    category: 'Mortgage',
+    description: 'Creation (Form XVIII), Modification (Form XIX), Satisfaction (Form XXVIII).',
     requiredDocuments: [],
     checklist: [],
     deadlineRuleId: null,

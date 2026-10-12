@@ -7,7 +7,7 @@ import {
   FolderOpen, BriefcaseBusiness, CheckCircle2, Clock3, AlertTriangle,
   ArrowLeft, ArrowRight, UserCheck, ShieldAlert, FileText, Check, Plus,
   Trash2, RefreshCw, Send, RotateCcw, DollarSign, Calendar, ExternalLink,
-  ChevronRight, ClipboardList, CheckSquare, Layers, Building2
+  ChevronRight, ClipboardList, CheckSquare, Layers, Building2, Users
 } from "lucide-react";
 import {
   getWork, updateWork, getWorkChecklist, addWorkChecklistItem,
@@ -23,6 +23,9 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 import { PageHeader, ContentCard, StatCard, StatusBadge, LoadingState, Table, Th, Td } from "@/components/SharedUI";
 import WorkingPaperWorkspace from "@/components/working-papers/WorkingPaperWorkspace";
 import SubmissionLifecycleWorkspace from "@/components/submissions/SubmissionLifecycleWorkspace";
+import AnnualReturnServicePanel from "@/components/services/AnnualReturnServicePanel";
+import ShareTransferServicePanel from "@/components/services/ShareTransferServicePanel";
+import MortgageChargeServicePanel from "@/components/services/MortgageChargeServicePanel";
 
 const LIFECYCLE_STATUSES = [
   "Pending Check",
@@ -51,7 +54,7 @@ export default function WorkDetailPage() {
   const [financials, setFinancials] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "checklist" | "tasks" | "documents" | "working-papers" | "review" | "submission-lifecycle" | "finance">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "service-module" | "checklist" | "tasks" | "documents" | "working-papers" | "review" | "submission-lifecycle" | "finance">("overview");
 
   // Checklist Item Modal
   const [newChecklistText, setNewChecklistText] = useState("");
@@ -305,6 +308,40 @@ export default function WorkDetailPage() {
   const reviewStatus = work.review_status || "DRAFT";
   const userRole = user?.role || "JUNIOR";
 
+  const serviceCategory = useMemo(() => {
+    if (!work?.service_id) return null;
+    const sid = work.service_id.toLowerCase();
+    if (sid.includes("annual-return")) return "annual-return";
+    if (sid.includes("share-transfer")) return "share-transfer";
+    if (sid.includes("mortgage") || sid.includes("charge")) return "mortgage-charge";
+    return null;
+  }, [work?.service_id]);
+
+  const serviceTabConfig = useMemo(() => {
+    if (serviceCategory === "annual-return") {
+      return {
+        label: "Annual Return Assessment",
+        icon: Calendar,
+        desc: "Multi-year statutory delay evaluation, Sec 36 AGM+21 days compliance, and late fee tracking."
+      };
+    }
+    if (serviceCategory === "share-transfer") {
+      return {
+        label: "Share Transfer (Form 117)",
+        icon: Users,
+        desc: "Mathematical shareholding reconciliation, Form 117 generation, and authorized register updates."
+      };
+    }
+    if (serviceCategory === "mortgage-charge") {
+      return {
+        label: "Mortgage & Charge",
+        icon: Layers,
+        desc: "Section 159 21-day deed deadline countdown, High Court condonation detection, and Forms XVIII/XIX/XXVIII."
+      };
+    }
+    return null;
+  }, [serviceCategory]);
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-16">
       {/* Top Breadcrumb & Navigation */}
@@ -387,6 +424,7 @@ export default function WorkDetailPage() {
       <div className="flex border-b border-[#d9e3df] gap-1 overflow-x-auto bg-[#fffaf0] p-1 rounded-xl">
         {[
           { key: "overview", label: "Overview & Details", icon: BriefcaseBusiness },
+          ...(serviceTabConfig ? [{ key: "service-module", label: serviceTabConfig.label, icon: serviceTabConfig.icon }] : []),
           { key: "checklist", label: `Checklist (${completedChecklist}/${totalChecklist})`, icon: ClipboardList },
           { key: "tasks", label: `Tasks & Deadlines (${tasks.length})`, icon: CheckSquare },
           { key: "documents", label: `Documents (${documents.length})`, icon: FileText },
@@ -417,6 +455,26 @@ export default function WorkDetailPage() {
       {/* TAB CONTENT: Overview */}
       {activeTab === "overview" && (
         <div className="space-y-6">
+          {serviceTabConfig && (
+            <div className="rounded-2xl border-2 border-[#79b993]/50 bg-[#f4f9f6] p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#447a5d] text-white shadow-sm">
+                  <serviceTabConfig.icon size={22} />
+                </div>
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-wider text-[#44765b]">Specialized Statutory Workspace</div>
+                  <h3 className="text-base font-black text-[#181818]">{serviceTabConfig.label}</h3>
+                  <p className="text-xs text-[#6c7671] mt-0.5">{serviceTabConfig.desc}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab("service-module")}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#447a5d] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#396a50] transition whitespace-nowrap"
+              >
+                Open {serviceTabConfig.label} <ArrowRight size={14} />
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Status & Lifecycle Flow */}
             <ContentCard className="p-6 md:col-span-2">
@@ -505,6 +563,30 @@ export default function WorkDetailPage() {
               </div>
             </ContentCard>
           </div>
+        </div>
+      )}
+
+      {/* TAB CONTENT: Specialized Statutory Service Workspace */}
+      {activeTab === "service-module" && serviceCategory && (
+        <div className="space-y-6">
+          {serviceCategory === "annual-return" && (
+            <AnnualReturnServicePanel
+              clientId={work.client_id}
+              currentWorkId={work.id}
+            />
+          )}
+          {serviceCategory === "share-transfer" && (
+            <ShareTransferServicePanel
+              workId={work.id}
+              onSaved={fetchData}
+            />
+          )}
+          {serviceCategory === "mortgage-charge" && (
+            <MortgageChargeServicePanel
+              workId={work.id}
+              onSaved={fetchData}
+            />
+          )}
         </div>
       )}
 

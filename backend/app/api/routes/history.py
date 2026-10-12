@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from typing import List, Optional, Any
-from datetime import date
+from datetime import date, timedelta
 from uuid import UUID
 from app.db.session import get_db
 from app.models.client import Client
 from app.models.corporate_history import (
     ClientNameHistory, RegisteredOfficeHistory, CapitalHistory, Director,
-    Shareholder, AgmHistory, AnnualReturnHistory, RjscFilingHistory,
+    Shareholder, ShareTransferHistory, AgmHistory, AnnualReturnHistory, RjscFilingHistory,
     MortgageChargeHistory, ComplianceIssue
 )
 from pydantic import BaseModel
@@ -30,6 +30,7 @@ def get_all_history(client_id: UUID, db: Session = Depends(get_db)):
         "capital_history": get_history_list(CapitalHistory, client_id, db),
         "directors": get_history_list(Director, client_id, db),
         "shareholders": get_history_list(Shareholder, client_id, db),
+        "share_transfers": get_history_list(ShareTransferHistory, client_id, db),
         "agm_history": get_history_list(AgmHistory, client_id, db),
         "annual_returns": get_history_list(AnnualReturnHistory, client_id, db),
         "filings": get_history_list(RjscFilingHistory, client_id, db),
@@ -38,6 +39,39 @@ def get_all_history(client_id: UUID, db: Session = Depends(get_db)):
     }
 
 def create_or_update(model, client_id, db, data, record_id=None):
+    # Statutory auto-calculations for Annual Return
+    if model == AnnualReturnHistory:
+        actual_agm = data.get("actual_agm_date")
+        if actual_agm and not data.get("due_date"):
+            data["due_date"] = actual_agm + timedelta(days=21)
+        
+        due = data.get("due_date")
+        filed = data.get("filed_date")
+        if filed:
+            data["filing_status"] = "FILED"
+            if due and filed > due and not data.get("late_fee"):
+                delay_days = (filed - due).days
+                data["late_fee"] = float(delay_days * 10)
+        elif due:
+            today = date.today()
+            if today > due:
+                data["filing_status"] = "OVERDUE"
+                if not data.get("late_fee"):
+                    data["late_fee"] = float((today - due).days * 10)
+            else:
+                data["filing_status"] = "PENDING"
+        elif not actual_agm and not filed and not data.get("filing_status"):
+            data["filing_status"] = "EVIDENCE_UNCERTAIN"
+
+    # Backward compatibility and statutory fields for MortgageChargeHistory
+    if model == MortgageChargeHistory:
+        c_date = data.get("creation_date")
+        i_date = data.get("instrument_date")
+        if c_date and not i_date:
+            data["instrument_date"] = c_date
+        elif i_date and not c_date:
+            data["creation_date"] = i_date
+
     if record_id:
         record = db.get(model, record_id)
         if not record or record.client_id != client_id:
@@ -87,6 +121,28 @@ class ShareholderBase(BaseModel):
     effective_to: Optional[date] = None
     is_current: bool = True
 
+class ShareTransferBase(BaseModel):
+    transfer_no: Optional[str] = "1"
+    transferor_name: str
+    transferor_address: Optional[str] = None
+    transferee_name: str
+    transferee_address: Optional[str] = None
+    share_class: Optional[str] = "Ordinary Shares"
+    share_count: float
+    nominal_value: Optional[float] = 100.0
+    paid_up_per_share: Optional[float] = 100.0
+    consideration_amount: float
+    distinctive_from: Optional[int] = None
+    distinctive_to: Optional[int] = None
+    execution_date: Optional[date] = None
+    board_approval_date: Optional[date] = None
+    status: Optional[str] = "DRAFT"
+    pre_transfer_state: Optional[Any] = None
+    post_transfer_state: Optional[Any] = None
+    source_evidence: Optional[str] = None
+    notes: Optional[str] = None
+    work_id: Optional[UUID] = None
+
 class AgmHistoryBase(BaseModel):
     financial_year: str
     agm_date: Optional[date] = None
@@ -96,11 +152,20 @@ class AgmHistoryBase(BaseModel):
 
 class AnnualReturnBase(BaseModel):
     financial_year: str
-    filed_date: Optional[date] = None
-    filing_status: str = "PENDING"
+    actual_agm_date: Optional[date] = None
+    audit_report_date: Optional[date] = None
+    dvc_date: Optional[date] = None
+    dvc_code: Optional[str] = None
     due_date: Optional[date] = None
+    filed_date: Optional[date] = None
+    filing_status: Optional[str] = "PENDING"
+    evidence_status: Optional[str] = "EVIDENCE_UNCERTAIN"
     acknowledgement_reference: Optional[str] = None
+    source_evidence: Optional[str] = None
+    govt_fee: Optional[float] = 0.0
+    late_fee: Optional[float] = 0.0
     notes: Optional[str] = None
+    work_id: Optional[UUID] = None
 
 class FilingBase(BaseModel):
     service_type: str
@@ -111,12 +176,23 @@ class FilingBase(BaseModel):
     reference: Optional[str] = None
 
 class MortgageBase(BaseModel):
+    charge_type: Optional[str] = "CREATION"
     lender: str
     secured_amount: float
+    instrument_type: Optional[str] = None
+    instrument_date: Optional[date] = None
     creation_date: Optional[date] = None
     modification_date: Optional[date] = None
+    registration_date: Optional[date] = None
+    filing_reference: Optional[str] = None
+    property_description: Optional[str] = None
+    modification_details: Optional[str] = None
     satisfaction_date: Optional[date] = None
-    status: str = "ACTIVE"
+    satisfaction_noc_ref: Optional[str] = None
+    statutory_form_code: Optional[str] = "FORM_XVIII"
+    status: Optional[str] = "ACTIVE"
+    notes: Optional[str] = None
+    work_id: Optional[UUID] = None
 
 class ComplianceBase(BaseModel):
     title: str
@@ -133,6 +209,7 @@ configs = [
     ("capital-history", CapitalHistoryBase, CapitalHistory),
     ("directors", DirectorBase, Director),
     ("shareholders", ShareholderBase, Shareholder),
+    ("share-transfers", ShareTransferBase, ShareTransferHistory),
     ("agm-history", AgmHistoryBase, AgmHistory),
     ("annual-returns", AnnualReturnBase, AnnualReturnHistory),
     ("filings", FilingBase, RjscFilingHistory),

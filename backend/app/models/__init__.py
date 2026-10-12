@@ -8,6 +8,7 @@ from .corporate_history import (
     Shareholder,
     AgmHistory,
     AnnualReturnHistory,
+    ShareTransferHistory,
     RjscFilingHistory,
     MortgageChargeHistory,
     ComplianceIssue,

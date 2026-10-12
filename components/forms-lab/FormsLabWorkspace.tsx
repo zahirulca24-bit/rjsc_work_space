@@ -22,6 +22,9 @@ const PRIMARY_FORMS = [
   { code: "FORM_XII", label: "Form XII", sub: "Particulars of Directors & Managers", live: true },
   { code: "SCHEDULE_X", label: "Schedule X", sub: "Annual Summary of Share Capital & Members", live: true },
   { code: "FORM_117", label: "Form 117", sub: "Instrument of Transfer of Shares (Sec 38)", live: true },
+  { code: "FORM_XVIII", label: "Form XVIII", sub: "Particulars of Mortgages & Charges (Sec 159)", live: true },
+  { code: "FORM_XIX", label: "Form XIX", sub: "Modification of Mortgage or Charge (Sec 160)", live: true },
+  { code: "FORM_XXVIII", label: "Form XXVIII", sub: "Satisfaction of Mortgage or Charge (Sec 169)", live: true },
   { code: "FORM_23B", label: "Form 23B", sub: "Notice by Statutory Auditor", live: true },
   { code: "FORM_VI", label: "Form VI", sub: "Situation of Registered Office", live: true },
 ];
@@ -55,6 +58,16 @@ export default function FormsLabWorkspace({ workId }: FormsLabWorkspaceProps) {
   const [distinctiveTo, setDistinctiveTo] = useState<number | "">("");
   const [transferNo, setTransferNo] = useState("1");
   const [boardApprovalDate, setBoardApprovalDate] = useState("");
+
+  // Mortgage / Charge Specific parameters
+  const [lender, setLender] = useState("");
+  const [securedAmount, setSecuredAmount] = useState<number | "">("");
+  const [instrumentType, setInstrumentType] = useState("Deed of Mortgage / Hypothecation");
+  const [instrumentDate, setInstrumentDate] = useState("");
+  const [propertyDescription, setPropertyDescription] = useState("");
+  const [modificationDate, setModificationDate] = useState("");
+  const [modificationDetails, setModificationDetails] = useState("");
+  const [satisfactionDate, setSatisfactionDate] = useState("");
 
   // Review modal / action state
   const [reviewingRecordId, setReviewingRecordId] = useState<string | null>(null);
@@ -126,6 +139,17 @@ export default function FormsLabWorkspace({ workId }: FormsLabWorkspaceProps) {
         if (distinctiveTo !== "") payload.distinctive_to = Number(distinctiveTo);
         if (transferNo) payload.transfer_no = transferNo;
         if (boardApprovalDate) payload.board_approval_date = boardApprovalDate;
+      }
+
+      if (selectedCode === "FORM_XVIII" || selectedCode === "FORM_XIX" || selectedCode === "FORM_XXVIII") {
+        if (lender) payload.lender = lender;
+        if (securedAmount !== "") payload.secured_amount = Number(securedAmount);
+        if (instrumentType) payload.instrument_type = instrumentType;
+        if (instrumentDate) payload.instrument_date = instrumentDate;
+        if (propertyDescription) payload.property_description = propertyDescription;
+        if (modificationDate) payload.modification_date = modificationDate;
+        if (modificationDetails) payload.modification_details = modificationDetails;
+        if (satisfactionDate) payload.satisfaction_date = satisfactionDate;
       }
 
       const res = await generateFormPdf(workId, selectedCode, payload);
@@ -464,6 +488,100 @@ export default function FormsLabWorkspace({ workId }: FormsLabWorkspaceProps) {
                     className="w-full rounded-xl border border-[#d9e3df] bg-white px-3 py-2 text-xs font-semibold text-[#181818] outline-none focus:border-[#447a5d]"
                   />
                 </div>
+              )}
+
+              {(selectedCode === "FORM_XVIII" || selectedCode === "FORM_XIX" || selectedCode === "FORM_XXVIII") && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-[#6c7671] mb-1">Mortgagee / Lender Bank</label>
+                    <input
+                      type="text"
+                      value={lender}
+                      onChange={(e) => setLender(e.target.value)}
+                      placeholder="e.g. Sonali Bank PLC / Eastern Bank PLC"
+                      className="w-full rounded-xl border border-[#d9e3df] bg-white px-3 py-2 text-xs font-semibold text-[#181818] outline-none focus:border-[#447a5d]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-[#6c7671] mb-1">Amount Secured (BDT)</label>
+                    <input
+                      type="number"
+                      value={securedAmount}
+                      onChange={(e) => setSecuredAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="e.g. 25000000"
+                      className="w-full rounded-xl border border-[#d9e3df] bg-white px-3 py-2 text-xs font-semibold text-[#181818] outline-none focus:border-[#447a5d]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-[#6c7671] mb-1">Instrument Type</label>
+                    <input
+                      type="text"
+                      value={instrumentType}
+                      onChange={(e) => setInstrumentType(e.target.value)}
+                      placeholder="e.g. Deed of Mortgage / Hypothecation"
+                      className="w-full rounded-xl border border-[#d9e3df] bg-white px-3 py-2 text-xs font-semibold text-[#181818] outline-none focus:border-[#447a5d]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-[#6c7671] mb-1">Instrument Date (Sec 159 21-day limit)</label>
+                    <input
+                      type="date"
+                      value={instrumentDate}
+                      onChange={(e) => setInstrumentDate(e.target.value)}
+                      className="w-full rounded-xl border border-[#d9e3df] bg-white px-3 py-2 text-xs font-semibold text-[#181818] outline-none focus:border-[#447a5d]"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold uppercase text-[#6c7671] mb-1">Property Description</label>
+                    <textarea
+                      rows={2}
+                      value={propertyDescription}
+                      onChange={(e) => setPropertyDescription(e.target.value)}
+                      placeholder="Brief particulars of property mortgaged or charged"
+                      className="w-full rounded-xl border border-[#d9e3df] bg-white px-3 py-2 text-xs font-semibold text-[#181818] outline-none focus:border-[#447a5d]"
+                    />
+                  </div>
+
+                  {selectedCode === "FORM_XIX" && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold uppercase text-[#6c7671] mb-1">Modification Deed Date</label>
+                        <input
+                          type="date"
+                          value={modificationDate}
+                          onChange={(e) => setModificationDate(e.target.value)}
+                          className="w-full rounded-xl border border-[#d9e3df] bg-white px-3 py-2 text-xs font-semibold text-[#181818] outline-none focus:border-[#447a5d]"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-bold uppercase text-[#6c7671] mb-1">Modification Particulars</label>
+                        <textarea
+                          rows={2}
+                          value={modificationDetails}
+                          onChange={(e) => setModificationDetails(e.target.value)}
+                          placeholder="Details of variation in terms or enhancement of credit limit"
+                          className="w-full rounded-xl border border-[#d9e3df] bg-white px-3 py-2 text-xs font-semibold text-[#181818] outline-none focus:border-[#447a5d]"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {selectedCode === "FORM_XXVIII" && (
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-[#6c7671] mb-1">Satisfaction Date (Bank NOC)</label>
+                      <input
+                        type="date"
+                        value={satisfactionDate}
+                        onChange={(e) => setSatisfactionDate(e.target.value)}
+                        className="w-full rounded-xl border border-[#d9e3df] bg-white px-3 py-2 text-xs font-semibold text-[#181818] outline-none focus:border-[#447a5d]"
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
