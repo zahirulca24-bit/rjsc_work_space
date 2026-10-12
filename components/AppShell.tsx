@@ -530,7 +530,7 @@ export default function AppShell({
           </div>
         </nav>
       )}
-      {user && <div className="max-lg:[&>button]:bottom-24"><FloatingAssistant /></div>
+      {user && <div className="max-lg:[&>button]:bottom-24"><FloatingAssistant /></div>}
     </div>
   );
 }
