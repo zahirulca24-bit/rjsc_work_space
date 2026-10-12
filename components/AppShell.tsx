@@ -30,6 +30,8 @@ import {
   CheckCircle2,
   Clock3,
   LogOut,
+  Menu,
+  Wallet,
 } from "lucide-react";
 
 const RAW_GROUPS = [
@@ -108,6 +110,7 @@ export default function AppShell({
   const router = useRouter();
 
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -148,6 +151,7 @@ export default function AppShell({
   }, []);
 
   function navigate(href: string) {
+    setMobileMenuOpen(false);
     router.push(href);
     setSearchOpen(false);
     setQuery("");
@@ -309,9 +313,33 @@ export default function AppShell({
         </div>
       </aside>
 
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button type="button" aria-label="Close navigation" className="absolute inset-0 bg-black/50" onClick={() => setMobileMenuOpen(false)} />
+          <aside id="mobile-navigation" aria-label="Mobile navigation" className="absolute inset-y-0 left-0 flex w-[min(85vw,320px)] flex-col bg-[#315f55] text-white shadow-2xl">
+            <div className="flex h-16 items-center justify-between border-b border-white/10 px-4">
+              <span className="font-black">ZA Corporate Desk</span>
+              <button type="button" aria-label="Close menu" onClick={() => setMobileMenuOpen(false)} className="rounded-lg p-2"><X size={22} /></button>
+            </div>
+            <nav className="flex-1 overflow-y-auto px-3 py-4">
+              {groups.map(group => (
+                <div key={group.label} className="mb-5">
+                  <div className="mb-2 px-3 text-xs font-bold uppercase tracking-wider text-[#a9cec0]">{group.label}</div>
+                  {group.items.map(item => {
+                    const Icon = item.icon;
+                    const active = pathname === item.href || pathname.startsWith(item.href + "/");
+                    return <Link key={item.href} href={item.href} onClick={() => setMobileMenuOpen(false)} aria-current={active ? "page" : undefined} className={`mb-1 flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold ${active ? "bg-[#fff8e8] text-[#294d45]" : "text-[#e4f0eb] hover:bg-white/10"}`}><Icon size={19}/>{item.label}</Link>;
+                  })}
+                </div>
+              ))}
+            </nav>
+          </aside>
+        </div>
+      )}
       <main className="shell-main min-h-screen">
         <header className="sticky top-0 z-30 border-b border-[#e6dfcf] bg-[#fffaf0]/95 backdrop-blur">
-          <div className="flex h-[72px] items-center justify-between gap-4 px-5 lg:px-7">
+          <div className="flex h-[64px] items-center justify-between gap-2 px-3 sm:h-[72px] sm:px-5 lg:px-7">
+            <button type="button" aria-label="Open navigation menu" aria-controls="mobile-navigation" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(true)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#ddd7c9] bg-white/80 text-[#315f55] lg:hidden"><Menu size={22}/></button>
             <div>
               <div className="text-sm font-black text-[#292a26]">
                 Zahir & Associate
@@ -481,11 +509,28 @@ export default function AppShell({
           </div>
         </header>
 
-        <div className="app-content p-5 lg:p-6 xl:p-7">
+        <div className="app-content p-3 pb-28 sm:p-5 sm:pb-28 lg:p-6 xl:p-7">
           <div className="app-content-inner">{children}</div>
         </div>
       </main>
-      {user && <FloatingAssistant />}
+      {user && (
+        <nav aria-label="Mobile bottom navigation" className="fixed inset-x-0 bottom-0 z-40 border-t border-[#d9e3df] bg-[#fffaf0] pb-[env(safe-area-inset-bottom)] shadow-lg lg:hidden">
+          <div className="grid h-16 grid-cols-5">
+            {[
+              {label:"Home",href:"/dashboard",icon:LayoutDashboard},
+              {label:"Clients",href:"/clients",icon:Building2},
+              {label:"Works",href:"/work-register",icon:ClipboardList},
+              {label:"Finance",href:groups.flatMap(g=>g.items).some(i=>i.href==="/billing")?"/billing":groups.flatMap(g=>g.items).some(i=>i.href==="/services-fees")?"/services-fees":null,icon:Wallet},
+            ].map(tab=>{
+              const Icon=tab.icon;
+              const active=tab.href && (pathname===tab.href || pathname.startsWith(tab.href+"/"));
+              return tab.href ? <Link key={tab.label} href={tab.href} aria-current={active?"page":undefined} className={`flex flex-col items-center justify-center gap-1 text-[11px] font-semibold ${active?"text-[#315f55]":"text-[#6c7671]"}`}><Icon size={21}/>{tab.label}</Link> : <button key={tab.label} type="button" onClick={()=>setMobileMenuOpen(true)} className="flex flex-col items-center justify-center gap-1 text-[11px] font-semibold text-[#6c7671]"><Icon size={21}/>{tab.label}</button>;
+            })}
+            <button type="button" aria-label="Open all modules" onClick={()=>setMobileMenuOpen(true)} className="flex flex-col items-center justify-center gap-1 text-[11px] font-semibold text-[#6c7671]"><Menu size={21}/>More</button>
+          </div>
+        </nav>
+      )}
+      {user && <div className="max-lg:[&>button]:bottom-24"><FloatingAssistant /></div>}
     </div>
   );
 }
