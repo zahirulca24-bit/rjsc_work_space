@@ -76,6 +76,24 @@ export default function LoginPage() {
                         {loading ? <Loader2 size={18} className="animate-spin" /> : "Sign In"}
                     </button>
                 </form>
+
+                <div className="mt-6 rounded-xl border border-[#d2e2db] bg-[#edf6f2] p-3 text-xs text-[#2e5349]">
+                    <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-bold text-[#1f3d35]">Default Login Credentials:</span>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setEmail("admin@example.com");
+                                setPassword("password123");
+                            }}
+                            className="font-bold text-[#315f55] underline hover:text-[#1f3d35]"
+                        >
+                            Auto-fill
+                        </button>
+                    </div>
+                    <div><span className="font-semibold">Email:</span> admin@example.com</div>
+                    <div><span className="font-semibold">Password:</span> password123</div>
+                </div>
             </div>
         </div>
     );

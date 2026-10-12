@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
-from app.api.deps import get_current_user
-from app.api.routes import status, health, clients, works, documents, storage, invoices, transactions, analytics, auth, users, tasks, audit, ai_documents, pilot_feedback, rjsc_snapshots, client_intake
+from .deps import get_current_user
+from .routes import status, health, clients, works, documents, storage, invoices, transactions, analytics, auth, users, tasks, audit, ai_documents, pilot_feedback, rjsc_snapshots, client_intake, working_papers, forms_lab, submissions
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -13,6 +13,9 @@ api_router.include_router(status.router, prefix="/status", tags=["status"], depe
 api_router.include_router(clients.router, prefix="/clients", tags=["clients"], dependencies=protected)
 api_router.include_router(clients.HISTORY_ROUTER, prefix="/clients", tags=["clients-history"], dependencies=protected)
 api_router.include_router(works.router, prefix="/works", tags=["works"], dependencies=protected)
+api_router.include_router(working_papers.router, prefix="/working-papers", tags=["working-papers"], dependencies=protected)
+api_router.include_router(forms_lab.router, dependencies=protected)
+api_router.include_router(submissions.router, prefix="/submissions", tags=["submissions"], dependencies=protected)
 api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"], dependencies=protected)
 api_router.include_router(audit.router, prefix="/audit-logs", tags=["audit"], dependencies=protected)
 api_router.include_router(documents.router, prefix="/documents", tags=["documents"], dependencies=protected)

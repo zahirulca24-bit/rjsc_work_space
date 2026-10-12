@@ -14,6 +14,8 @@ import { HistoryRecordModal } from "./HistoryRecordModal";
 import ComplianceReview from "./ComplianceReview";
 import RjscRecordComparison from "./RjscRecordComparison";
 import { EntityType } from "@/lib/rjsc/types";
+import { computeDocumentCompleteness, DocumentCompletenessSummary } from "@/lib/clients/document-completeness";
+import { listDocuments } from "@/lib/api/documents";
 
 export default function ClientProfilePage() {
   const params = useParams();
@@ -23,10 +25,12 @@ export default function ClientProfilePage() {
   const [currentPosition, setCurrentPosition] = useState<any>(null);
   const [events, setEvents] = useState<CorporateEvent[]>([]);
   const [clientWorks, setClientWorks] = useState<any[]>([]);
+  const [clientDocs, setClientDocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string|null>(null);
 
   const [tab, setTab] = useState("Overview");
+
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editEvent, setEditEvent] = useState<CorporateEvent | null>(null);
@@ -99,15 +103,18 @@ export default function ClientProfilePage() {
   const fetchAllData = async () => {
     try {
       setLoading(true);
-      const [c, cp, hist, wks] = await Promise.all([
+      const [c, cp, hist, wks, docs] = await Promise.all([
         getClient(id),
         getClientCurrentPosition(id),
         getClientHistory(id),
-        getWorks()
+        getWorks(),
+        listDocuments({ client_id: id }).catch(() => [])
       ]);
       setClient(c);
       setCurrentPosition(cp);
       setClientWorks(wks.filter((w: any) => w.client_id === id));
+      setClientDocs(docs || []);
+
 
       const mappedEvents: CorporateEvent[] = [];
       hist.registered_office_history?.forEach((e:any) => mappedEvents.push({
@@ -207,6 +214,80 @@ export default function ClientProfilePage() {
           </button>
         ))}
       </div>
+
+      {tab === "Overview" && (() => {
+        const comp = computeDocumentCompleteness(clientDocs);
+        return (
+          <ContentCard className="p-6 border-l-4 border-l-[#447a5d]">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-[#181818] text-lg">Legal Document Completeness</h3>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-black ${
+                    comp.uploadedCount === 3
+                      ? "bg-[#e7f5ec] text-[#234a32] border border-[#b8dfc6]"
+                      : comp.uploadedCount > 0
+                      ? "bg-[#fff5df] text-[#715923] border border-[#f0dfb8]"
+                      : "bg-[#fce9e4] text-[#a03c2a] border border-[#f5c6bb]"
+                  }`}>
+                    {comp.scoreText} Received
+                  </span>
+                </div>
+                <p className="text-xs text-[#6c7671] mt-1">
+                  Required legal core: Certificate of Incorporation, Form XII, and Schedule X.
+                  Documents are evidence of filings, not automatic proof of current compliance.
+                </p>
+              </div>
+              <button
+                onClick={() => setTab("Documents")}
+                className="text-xs font-bold text-[#447a5d] hover:underline whitespace-nowrap bg-[#eef7f3] px-3 py-1.5 rounded-lg"
+              >
+                + Upload / Manage Docs
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {comp.items.map((item) => {
+                let badgeClass = "bg-[#fce9e4] text-[#a03c2a] border-[#f5c6bb]";
+                let badgeText = "Missing";
+                let badgeDesc = "Legal core document not uploaded yet";
+
+                if (item.status === "VERIFIED") {
+                  badgeClass = "bg-[#e7f5ec] text-[#234a32] border-[#b8dfc6]";
+                  badgeText = "Verified";
+                  badgeDesc = "Source checked against RJSC record";
+                } else if (item.status === "OUTDATED") {
+                  badgeClass = "bg-[#fff5df] text-[#715923] border-[#f0dfb8]";
+                  badgeText = "Outdated";
+                  badgeDesc = "Verified source exists but not current";
+                } else if (item.status === "UPLOADED") {
+                  badgeClass = "bg-[#e8f4f8] text-[#1c657d] border-[#b8e1ee]";
+                  badgeText = "Uploaded (Pending Check)";
+                  badgeDesc = "Received on file, verification pending";
+                }
+
+                return (
+                  <div key={item.type} className="rounded-xl border border-[#ece5d9] bg-[#fffdf7] p-3.5 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <span className="text-xs font-black text-[#181818]">{item.label}</span>
+                      <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md border ${badgeClass}`}>
+                        {badgeText}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#6c7671] leading-relaxed">{badgeDesc}</p>
+                    {item.documentDate && (
+                      <div className="text-[10px] text-[#44765b] font-medium">Doc Date: {item.documentDate}</div>
+                    )}
+                    {item.originalFilename && (
+                      <div className="text-[10px] text-[#6c7671] truncate" title={item.originalFilename}>File: {item.originalFilename}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </ContentCard>
+        );
+      })()}
 
       {tab === "Overview" && (
         <ContentCard className="p-6">

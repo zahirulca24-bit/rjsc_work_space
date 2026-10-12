@@ -12,8 +12,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.types import JSON
 
-from app.db.base import Base
-from app.models.client import utc_now
+from ..db.base import Base
+from .client import utc_now
 
 
 def JSONVariant():

@@ -7,10 +7,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.router import api_router
-from app.api.routes.health import router as health_router
-from app.core.config import settings
-from app.services.audit import install_audit_listeners
+from .api.router import api_router
+from .api.routes.health import router as health_router
+from .core.config import settings
+from .services.audit import install_audit_listeners
 
 logging.basicConfig(
     level=logging.INFO,
