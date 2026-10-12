@@ -194,13 +194,16 @@ export default function ShareTransferServicePanel({ workId, onSaved }: ShareTran
   };
 
   const handleApproveProposal = async () => {
-    if (!boardApprovalDate && !data?.active_transfer?.board_approval_date) {
+    const effectiveBoardDate = boardApprovalDate || data?.active_transfer?.board_approval_date;
+    if (!effectiveBoardDate) {
       alert("Please ensure the Board Approval Meeting Date is specified before approval.");
       return;
     }
     setApproving(true);
     try {
-      const res = await approveShareTransferProposal(workId);
+      const res = await approveShareTransferProposal(workId, {
+        board_approval_date: effectiveBoardDate
+      });
       setSaveSuccess(res.message || "Proposal successfully approved!");
       loadData();
       if (onSaved) onSaved();

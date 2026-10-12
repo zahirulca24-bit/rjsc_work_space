@@ -13,6 +13,7 @@ from ...models.client import Client
 from ...models.work import Work, WorkChecklist
 from ...models.corporate_history import AnnualReturnHistory, AgmHistory, Director, Shareholder, CapitalHistory
 from ...models.working_paper import WorkingPaper
+from ...services.evidence_verification import is_official_rjsc_acknowledgement, has_verified_filing_document
 from .works import generate_work_code
 
 router = APIRouter(prefix="/annual-returns", tags=["Annual Returns Service"])
@@ -117,8 +118,8 @@ def get_annual_return_assessment(
             filed_count += 1
             # Provenance / Acknowledgment verification:
             # Merely having a filed_date does NOT make evidence VERIFIED.
-            # Require acknowledgment reference or verified source evidence document.
-            if (ack_ref and ack_ref.strip()) or (source_ev and source_ev.strip()):
+            # Require a reviewed official RJSC acknowledgment or verified filing document with provenance.
+            if is_official_rjsc_acknowledgement(ack_ref) or has_verified_filing_document(db, client.id, source_ev, ar.work_id if ar else None):
                 evidence_status = "VERIFIED"
             else:
                 evidence_status = "REVIEW_REQUIRED"

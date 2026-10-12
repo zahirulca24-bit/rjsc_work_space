@@ -11,10 +11,16 @@ from ..deps import get_current_user
 from ...models.user import User, RoleEnum
 from ...models.client import Client
 from ...models.work import Work, WorkChecklist
+from ...models.document import Document
 from ...models.corporate_history import ShareTransferHistory, Shareholder
 from ...models.audit import AuditLog
 
 router = APIRouter(prefix="/share-transfers", tags=["Share Transfer Service"])
+
+class ShareTransferApproveRequest(BaseModel):
+    board_approval_date: Optional[date] = None
+    board_resolution_evidence: Optional[str] = None
+    document_id: Optional[uuid.UUID] = None
 
 class ShareTransferProposalRequest(BaseModel):
     transferor_name: str
@@ -272,6 +278,7 @@ def save_share_transfer_proposal(
 @router.post("/work/{work_id}/approve")
 def approve_share_transfer_proposal(
     work_id: uuid.UUID,
+    payload: Optional[ShareTransferApproveRequest] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -279,6 +286,8 @@ def approve_share_transfer_proposal(
     AUTHORITY ACTION:
     Approves a Share Transfer proposal after verifying Board Resolution and statutory requirements.
     Only ADMIN or MANAGER roles can approve.
+    - Requires actual Board approval meeting date.
+    - Requires verified Board Resolution evidence (a typed evidence string alone is rejected).
     """
     user_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
     if user_role not in [RoleEnum.ADMIN.value, RoleEnum.MANAGER.value]:
@@ -291,6 +300,10 @@ def approve_share_transfer_proposal(
     if not work:
         raise HTTPException(status_code=404, detail="Work order not found")
 
+    client = db.get(Client, work.client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
     transfer_rec = db.query(ShareTransferHistory).filter(
         ShareTransferHistory.work_id == work_id
     ).first()
@@ -301,10 +314,87 @@ def approve_share_transfer_proposal(
     if transfer_rec.status == "EXECUTED_IN_REGISTER":
         raise HTTPException(status_code=400, detail="Cannot alter status: transfer already executed in register")
 
-    if not transfer_rec.board_approval_date and not transfer_rec.source_evidence:
+    # Optional payload field updates
+    if payload:
+        if payload.board_approval_date:
+            transfer_rec.board_approval_date = payload.board_approval_date
+        if payload.board_resolution_evidence:
+            transfer_rec.source_evidence = payload.board_resolution_evidence
+
+    # 1. Actual Board Approval Date is strictly mandatory
+    if not transfer_rec.board_approval_date:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot approve transfer: Board approval date or source evidence document is required before approval."
+            detail="Cannot approve transfer: Actual Board approval meeting date is required before setting APPROVED."
+        )
+
+    # 2. Verified Board Resolution Evidence Gate:
+    # A typed evidence string alone must NOT authorize execution.
+    # Must be supported by a verified Board Resolution document or completed statutory checklist item.
+    has_verified_resolution = False
+
+    # Check if a specific document_id was provided or referenced
+    doc_id_to_check = None
+    if payload and payload.document_id:
+        doc_id_to_check = payload.document_id
+    elif transfer_rec.source_evidence:
+        try:
+            doc_id_to_check = uuid.UUID(transfer_rec.source_evidence.strip())
+        except (ValueError, AttributeError):
+            pass
+
+    if doc_id_to_check:
+        referenced_doc = db.get(Document, doc_id_to_check)
+        if referenced_doc:
+            if referenced_doc.status == "VERIFIED":
+                has_verified_resolution = True
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot approve transfer: Referenced Board Resolution document status is '{referenced_doc.status}' (must be 'VERIFIED')."
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot approve transfer: Referenced Board Resolution document '{doc_id_to_check}' was not found."
+            )
+
+    # Check if a verified Board Resolution document exists on this work or client
+    if not has_verified_resolution:
+        verified_board_doc = db.query(Document).filter(
+            (Document.work_id == work_id) | (Document.client_id == client.id),
+            Document.status == "VERIFIED",
+            (
+                Document.category.ilike("%resolution%") |
+                Document.category.ilike("%board%") |
+                Document.category.ilike("%minutes%") |
+                Document.document_name.ilike("%resolution%") |
+                Document.document_name.ilike("%minutes%")
+            )
+        ).first()
+        if verified_board_doc:
+            has_verified_resolution = True
+            if not transfer_rec.source_evidence or not transfer_rec.source_evidence.strip():
+                transfer_rec.source_evidence = str(verified_board_doc.id)
+
+    # Check if statutory checklist item ST-CHK-03 is marked VERIFIED or COMPLETED
+    if not has_verified_resolution:
+        verified_chk = db.query(WorkChecklist).filter(
+            WorkChecklist.work_id == work_id,
+            (WorkChecklist.item_code == "ST-CHK-03") | (WorkChecklist.item_text.ilike("%board%resolution%")),
+            WorkChecklist.status.in_(["VERIFIED", "COMPLETED"])
+        ).first()
+        if verified_chk:
+            has_verified_resolution = True
+
+    if not has_verified_resolution:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Cannot approve transfer: Verified Board Resolution evidence is required. "
+                "A typed evidence string alone does not authorize execution. "
+                "A verified Board Resolution document or completed verification checklist item is required."
+            )
         )
 
     transfer_rec.status = "APPROVED"

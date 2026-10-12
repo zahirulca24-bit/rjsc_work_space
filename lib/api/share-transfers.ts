@@ -89,10 +89,20 @@ export async function saveShareTransferProposal(
   return res.json();
 }
 
-export async function approveShareTransferProposal(workId: string): Promise<any> {
+export interface ShareTransferApprovePayload {
+  board_approval_date?: string;
+  document_id?: string;
+  board_resolution_evidence?: string;
+}
+
+export async function approveShareTransferProposal(
+  workId: string,
+  payload?: ShareTransferApprovePayload
+): Promise<any> {
   const res = await fetchApi(`/api/share-transfers/work/${workId}/approve`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" }
+    headers: { "Content-Type": "application/json" },
+    body: payload ? JSON.stringify(payload) : undefined
   });
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));

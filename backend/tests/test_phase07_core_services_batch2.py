@@ -4,6 +4,8 @@ from datetime import date, timedelta
 from fastapi.testclient import TestClient
 from app.main import app
 from app.models.user import RoleEnum
+from app.models.document import Document
+from app.models.work import WorkChecklist
 from app.api.deps import get_current_user
 
 client = TestClient(app)
@@ -24,7 +26,7 @@ class AdminUser:
         self.email = "admin@example.com"
         self.name = "Test Admin"
 
-def test_annual_return_assessment_and_work_creation():
+def test_annual_return_assessment_and_work_creation(db_session):
     # 1. Create Client
     c_resp = client.post("/api/clients", json={
         "legal_name": "Acceptance Testing Annual Return Ltd",
@@ -35,8 +37,26 @@ def test_annual_return_assessment_and_work_creation():
     assert c_resp.status_code == 200
     client_id = c_resp.json()["id"]
 
+    # Create unverified (PENDING) and verified (VERIFIED) Document records for client
+    pending_doc = Document(
+        client_id=uuid.UUID(client_id),
+        document_name="Draft RJSC Filing Receipt.pdf",
+        category="FILING_RECEIPT",
+        status="PENDING"
+    )
+    db_session.add(pending_doc)
+
+    verified_doc = Document(
+        client_id=uuid.UUID(client_id),
+        document_name="Verified RJSC Acknowledgement.pdf",
+        category="RJSC_ACKNOWLEDGEMENT",
+        status="VERIFIED"
+    )
+    db_session.add(verified_doc)
+    db_session.commit()
+
     # 2. Add AGM history & Annual return history
-    # FY 2021-2022: FILED with verified acknowledgment reference
+    # FY 2021-2022: FILED with reviewed official acknowledgment reference
     client.post(f"/api/clients/{client_id}/agm-history", json={
         "financial_year": "2021-2022",
         "agm_date": "2022-12-15",
@@ -65,6 +85,45 @@ def test_annual_return_assessment_and_work_creation():
         # No acknowledgement_reference or source_evidence provided!
     })
 
+    # FY 2019-2020: NEGATIVE EVIDENCE TEST: Arbitrary text in source_evidence must NOT bypass gate!
+    client.post(f"/api/clients/{client_id}/agm-history", json={
+        "financial_year": "2019-2020",
+        "agm_date": "2020-12-10",
+        "status": "HELD"
+    })
+    client.post(f"/api/clients/{client_id}/annual-returns", json={
+        "financial_year": "2019-2020",
+        "actual_agm_date": "2020-12-10",
+        "filed_date": "2020-12-28",
+        "source_evidence": "Arbitrary typed receipt note in office file" # Arbitrary string alone
+    })
+
+    # FY 2018-2019: NEGATIVE EVIDENCE TEST: Unverified Document (PENDING status) must NOT bypass gate!
+    client.post(f"/api/clients/{client_id}/agm-history", json={
+        "financial_year": "2018-2019",
+        "agm_date": "2019-12-10",
+        "status": "HELD"
+    })
+    client.post(f"/api/clients/{client_id}/annual-returns", json={
+        "financial_year": "2018-2019",
+        "actual_agm_date": "2019-12-10",
+        "filed_date": "2019-12-28",
+        "source_evidence": str(pending_doc.id) # Referenced document has status == "PENDING"
+    })
+
+    # FY 2017-2018: POSITIVE PROVENANCE TEST: Explicitly VERIFIED Document marks evidence VERIFIED
+    client.post(f"/api/clients/{client_id}/agm-history", json={
+        "financial_year": "2017-2018",
+        "agm_date": "2018-12-10",
+        "status": "HELD"
+    })
+    client.post(f"/api/clients/{client_id}/annual-returns", json={
+        "financial_year": "2017-2018",
+        "actual_agm_date": "2018-12-10",
+        "filed_date": "2018-12-28",
+        "source_evidence": str(verified_doc.id) # Referenced document has status == "VERIFIED"
+    })
+
     # FY 2022-2023: OVERDUE (AGM held in Dec 2023, not filed)
     # Audit Rule: Remove unapproved hardcoded late fees; return REVIEW_REQUIRED
     client.post(f"/api/clients/{client_id}/agm-history", json={
@@ -85,10 +144,10 @@ def test_annual_return_assessment_and_work_creation():
     ass_data = ass_resp.json()
 
     assert ass_data["client_id"] == client_id
-    assert ass_data["filed_count"] >= 2
+    assert ass_data["filed_count"] >= 5
     assert ass_data["overdue_count"] >= 1
 
-    # Verify FY 2021-2022 (Verified with Acknowledgment)
+    # Verify FY 2021-2022 (Verified with Reviewed Official Acknowledgment Prefix)
     y_21 = next(y for y in ass_data["assessment"] if y["financial_year"] == "2021-2022")
     assert y_21["filing_status"] == "FILED"
     assert y_21["evidence_status"] == "VERIFIED"
@@ -100,6 +159,21 @@ def test_annual_return_assessment_and_work_creation():
     y_20 = next(y for y in ass_data["assessment"] if y["financial_year"] == "2020-2021")
     assert y_20["filing_status"] == "FILED"
     assert y_20["evidence_status"] == "REVIEW_REQUIRED"
+
+    # Verify FY 2019-2020 (Arbitrary Text Alone in source_evidence -> REVIEW_REQUIRED)
+    y_19 = next(y for y in ass_data["assessment"] if y["financial_year"] == "2019-2020")
+    assert y_19["filing_status"] == "FILED"
+    assert y_19["evidence_status"] == "REVIEW_REQUIRED"
+
+    # Verify FY 2018-2019 (Unverified Document PENDING in source_evidence -> REVIEW_REQUIRED)
+    y_18 = next(y for y in ass_data["assessment"] if y["financial_year"] == "2018-2019")
+    assert y_18["filing_status"] == "FILED"
+    assert y_18["evidence_status"] == "REVIEW_REQUIRED"
+
+    # Verify FY 2017-2018 (Verified Document in source_evidence -> VERIFIED)
+    y_17 = next(y for y in ass_data["assessment"] if y["financial_year"] == "2017-2018")
+    assert y_17["filing_status"] == "FILED"
+    assert y_17["evidence_status"] == "VERIFIED"
 
     # Verify FY 2022-2023 (Overdue -> statutory_late_fee == "REVIEW_REQUIRED")
     y_22 = next(y for y in ass_data["assessment"] if y["financial_year"] == "2022-2023")
@@ -134,7 +208,7 @@ def test_annual_return_assessment_and_work_creation():
     codes = [i["item_code"] for i in chk_items]
     assert "AR-CHK-01" in codes
 
-def test_share_transfer_reconciliation_and_authorized_apply():
+def test_share_transfer_reconciliation_and_authorized_apply(db_session):
     # 1. Create Client with Shareholders
     c_resp = client.post("/api/clients", json={
         "legal_name": "Acceptance Share Conveyance Corp",
@@ -177,7 +251,8 @@ def test_share_transfer_reconciliation_and_authorized_apply():
     assert "insufficient" in bad_resp.json()["detail"].lower()
 
     # 3. Test Valid Transfer Proposal: Rahim transfers 200 shares to Zahirul Islam (saved as DRAFT)
-    prop_resp = client.post(f"/api/share-transfers/work/{work_id}", json={
+    # Save proposal initially without board approval date
+    prop_resp_nodate = client.post(f"/api/share-transfers/work/{work_id}", json={
         "transferor_name": "Rahim Ahmed",
         "transferee_name": "Zahirul Islam",
         "share_count": 200,
@@ -185,50 +260,96 @@ def test_share_transfer_reconciliation_and_authorized_apply():
         "paid_up_per_share": 100,
         "consideration_amount": 20000,
         "execution_date": "2024-05-10",
-        "board_approval_date": "2024-05-15",
         "transfer_no": "1"
     })
-    assert prop_resp.status_code == 200
-    prop_data = prop_resp.json()
+    assert prop_resp_nodate.status_code == 200
+    prop_data = prop_resp_nodate.json()
     assert prop_data["status"] == "DRAFT"
     assert prop_data["total_shares_reconciled"] == 1000.0
 
-    # 4. NEGATIVE PERMISSION TEST: Unauthorized staff (JUNIOR) attempting apply is rejected with 403
+    # 4. NEGATIVE APPROVAL TEST: Missing Board Approval Date is strictly rejected with 400
+    app.dependency_overrides[get_current_user] = lambda: AdminUser()
+    appr_nodate = client.post(f"/api/share-transfers/work/{work_id}/approve", json={})
+    assert appr_nodate.status_code == 400
+    assert "board approval meeting date is required" in appr_nodate.json()["detail"].lower()
+
+    # 5. NEGATIVE PERMISSION TEST: Unauthorized staff (JUNIOR) attempting apply is rejected with 403
     app.dependency_overrides[get_current_user] = lambda: JuniorUser()
     apply_junior = client.post(f"/api/share-transfers/work/{work_id}/apply")
     assert apply_junior.status_code == 403
     assert "unauthorized" in apply_junior.json()["detail"].lower()
 
-    # 5. NEGATIVE STATUS TEST: Authorized staff (ADMIN) attempting apply while status is DRAFT is rejected with 400
+    # 6. NEGATIVE STATUS TEST: Authorized staff (ADMIN) attempting apply while status is DRAFT is rejected with 400
     app.dependency_overrides[get_current_user] = lambda: AdminUser()
     apply_draft = client.post(f"/api/share-transfers/work/{work_id}/apply")
     assert apply_draft.status_code == 400
     assert "approved" in apply_draft.json()["detail"].lower()
 
-    # 6. NEGATIVE APPROVAL TEST: Unauthorized staff (JUNIOR) attempting approve is rejected with 403
+    # 7. NEGATIVE APPROVAL TEST: Unauthorized staff (JUNIOR) attempting approve is rejected with 403
     app.dependency_overrides[get_current_user] = lambda: JuniorUser()
-    appr_junior = client.post(f"/api/share-transfers/work/{work_id}/approve")
+    appr_junior = client.post(f"/api/share-transfers/work/{work_id}/approve", json={
+        "board_approval_date": "2024-05-15"
+    })
     assert appr_junior.status_code == 403
 
-    # 7. AUTHORIZED APPROVAL: ADMIN approves the proposal after board approval verification
+    # 8. NEGATIVE EVIDENCE TEST: Arbitrary typed string alone cannot authorize execution
     app.dependency_overrides[get_current_user] = lambda: AdminUser()
-    appr_admin = client.post(f"/api/share-transfers/work/{work_id}/approve")
+    appr_typed_string = client.post(f"/api/share-transfers/work/{work_id}/approve", json={
+        "board_approval_date": "2024-05-15",
+        "board_resolution_evidence": "Arbitrary typed meeting minutes in minute book"
+    })
+    assert appr_typed_string.status_code == 400
+    assert "typed evidence string alone does not authorize execution" in appr_typed_string.json()["detail"].lower()
+
+    # 9. NEGATIVE EVIDENCE TEST: Unverified Board Resolution document (status == PENDING) cannot authorize execution
+    pending_board_doc = Document(
+        client_id=uuid.UUID(client_id),
+        work_id=uuid.UUID(work_id),
+        document_name="Draft Board Resolution.pdf",
+        category="BOARD_RESOLUTION",
+        status="PENDING"
+    )
+    db_session.add(pending_board_doc)
+    db_session.commit()
+
+    appr_unverified_doc = client.post(f"/api/share-transfers/work/{work_id}/approve", json={
+        "board_approval_date": "2024-05-15",
+        "document_id": str(pending_board_doc.id)
+    })
+    assert appr_unverified_doc.status_code == 400
+    assert "referenced board resolution document status is 'pending'" in appr_unverified_doc.json()["detail"].lower()
+
+    # 10. AUTHORIZED APPROVAL: Now provide verified Board Resolution document (status == VERIFIED)
+    verified_board_doc = Document(
+        client_id=uuid.UUID(client_id),
+        work_id=uuid.UUID(work_id),
+        document_name="Signed Board Resolution.pdf",
+        category="BOARD_RESOLUTION",
+        status="VERIFIED"
+    )
+    db_session.add(verified_board_doc)
+    db_session.commit()
+
+    appr_admin = client.post(f"/api/share-transfers/work/{work_id}/approve", json={
+        "board_approval_date": "2024-05-15",
+        "document_id": str(verified_board_doc.id)
+    })
     assert appr_admin.status_code == 200
     assert appr_admin.json()["status"] == "APPROVED"
 
-    # 8. Generate Form 117 PDF from this work
+    # 11. Generate Form 117 PDF from this work
     gen_resp = client.post(f"/api/forms-lab/generate/{work_id}/FORM_117", json={})
     assert gen_resp.status_code == 200
     assert gen_resp.json()["form_code"] == "FORM_117"
     assert gen_resp.json()["page_count"] == 1
 
-    # 9. Execute Authorized Apply
+    # 12. Execute Authorized Apply
     apply_resp = client.post(f"/api/share-transfers/work/{work_id}/apply")
     assert apply_resp.status_code == 200
     apply_data = apply_resp.json()
     assert apply_data["status"] == "EXECUTED_IN_REGISTER"
 
-    # 10. Verify Master Register IS NOW UPDATED
+    # 13. Verify Master Register IS NOW UPDATED
     hist_resp_after = client.get(f"/api/clients/{client_id}/history")
     shs_after = hist_resp_after.json()["shareholders"]
     rahim_after = next(s for s in shs_after if s["shareholder_name"] == "Rahim Ahmed")
@@ -237,7 +358,7 @@ def test_share_transfer_reconciliation_and_authorized_apply():
     zahirul_after = next(s for s in shs_after if s["shareholder_name"] == "Zahirul Islam")
     assert float(zahirul_after["share_count"]) == 200 # New shareholder added
 
-    # 11. Re-execution of already executed transfer is rejected with 400
+    # 14. Re-execution of already executed transfer is rejected with 400
     apply_reexec = client.post(f"/api/share-transfers/work/{work_id}/apply")
     assert apply_reexec.status_code == 400
 

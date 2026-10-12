@@ -11,6 +11,7 @@ from app.models.corporate_history import (
     Shareholder, ShareTransferHistory, AgmHistory, AnnualReturnHistory, RjscFilingHistory,
     MortgageChargeHistory, ComplianceIssue
 )
+from app.services.evidence_verification import is_official_rjsc_acknowledgement, has_verified_filing_document
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -51,8 +52,8 @@ def create_or_update(model, client_id, db, data, record_id=None):
         src = data.get("source_evidence")
         if filed:
             data["filing_status"] = "FILED"
-            # Require verified acknowledgment or source evidence before marking VERIFIED
-            if (ack and str(ack).strip()) or (src and str(src).strip()):
+            # Require a reviewed official RJSC acknowledgment or verified filing document with provenance
+            if is_official_rjsc_acknowledgement(ack) or has_verified_filing_document(db, client_id, src):
                 data["evidence_status"] = "VERIFIED"
             else:
                 data["evidence_status"] = "REVIEW_REQUIRED"

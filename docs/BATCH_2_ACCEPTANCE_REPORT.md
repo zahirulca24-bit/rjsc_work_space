@@ -40,12 +40,17 @@ This document records the acceptance verification of **Batch 2 (Core RJSC Servic
 ### Audit Fix 1 — Share Transfer Apply Role & Approval Gate
 - **Role Enforcement**: `apply_share_transfer_to_master` and `approve_share_transfer_proposal` explicitly require `RoleEnum.ADMIN` or `RoleEnum.MANAGER`. Unauthorized roles (`JUNIOR`, `SENIOR`) are strictly rejected with HTTP 403 Forbidden.
 - **Status Gate**: Transfer proposals in `DRAFT` or unapproved status are rejected with HTTP 400 Bad Request. Only proposals verified with board resolution and approved (`status == "APPROVED"`) can update the shareholder register.
-- **New Approval Endpoint**: `POST /api/share-transfers/work/{work_id}/approve` allows authorized managers/admins to verify board minutes and transition proposals from `DRAFT` to `APPROVED`.
-- **Negative Tests Added**:
+- **Mandatory Board Approval Date**: Setting proposal status to `APPROVED` strictly requires an actual Board approval meeting date (`board_approval_date`). Missing date is rejected with HTTP 400 Bad Request.
+- **Strict Board Resolution Evidence Gate**: A typed evidence string alone cannot authorize execution. Proposal approval strictly requires either a referenced `Document` record in `VERIFIED` status or completed statutory checklist item (`ST-CHK-03`). Referenced documents in `PENDING` status or arbitrary text strings are rejected with HTTP 400 Bad Request.
+- **Negative Tests Verified**:
+  - Missing `board_approval_date` -> 400 Bad Request.
+  - Arbitrary typed text string alone (`"Arbitrary typed meeting minutes..."`) -> 400 Bad Request.
+  - Unverified Document (`Document(status="PENDING")`) -> 400 Bad Request.
   - `JUNIOR` attempting `/apply` -> 403 Forbidden.
   - `ADMIN` attempting `/apply` while in `DRAFT` -> 400 Bad Request.
   - `JUNIOR` attempting `/approve` -> 403 Forbidden.
   - Re-applying already executed transfer -> 400 Bad Request.
+  - Authorized approval with `verified_board_doc` (`status == "VERIFIED"`) and `board_approval_date` -> 200 OK (`status == "APPROVED"`).
 
 ### Audit Fix 2 — Mortgage Apply Strict Registration Evidence
 - **Prohibition of Auto-Substitution**: Removed `if not charge_rec.registration_date: charge_rec.registration_date = date.today()`. Today's date is never substituted for missing registration dates.
@@ -59,10 +64,17 @@ This document records the acceptance verification of **Batch 2 (Core RJSC Servic
   - Unauthorized staff (`JUNIOR`) attempting apply -> 403 Forbidden.
   - Satisfaction apply without Bank NOC ref or filing ref -> 400 Bad Request.
 
-### Audit Fix 3 — Annual Return Provenance & Late-Fee Remediation
-- **Evidence Verification Provenance**: Populating a `filed_date` no longer marks evidence `VERIFIED` automatically. The system requires an official `acknowledgement_reference` or verified `source_evidence`. Filings lacking acknowledgment reference return `REVIEW_REQUIRED`.
+### Audit Fix 3 — Annual Return Provenance & Strict Evidence Gate
+- **Evidence Verification Provenance**: Populating a `filed_date` no longer marks evidence `VERIFIED` automatically.
+- **Strict Evidence Gate**: Arbitrary text strings in `source_evidence` (*e.g. "Arbitrary typed receipt note"*) or unverified documents (`status == "PENDING"`) return `evidence_status: "REVIEW_REQUIRED"`. Evidence is marked `VERIFIED` only when backed by an official reviewed RJSC acknowledgment reference (*e.g. prefix `AR-`, `RJSC-`, `ACK-`*) or an explicitly verified `Document` record with provenance (`status == "VERIFIED"`).
 - **Late-Fee Remediation**: Removed unapproved hardcoded statutory late-fee formula (`delay_days * 10`). Delayed/overdue filings return `statutory_late_fee: "REVIEW_REQUIRED"` until legally validated penalty rules are configured.
-- **Database Hygiene**: `create_or_update` in `history.py` no longer calculates or writes unapproved `delay_days * 10` into the `late_fee` database column.
+- **Database Hygiene**: `create_or_update` in `history.py` uses the shared `evidence_verification` service and no longer calculates or writes unapproved `delay_days * 10` into the `late_fee` database column.
+- **Negative Tests Verified**:
+  - Filing with arbitrary text alone in `source_evidence` -> `evidence_status: "REVIEW_REQUIRED"`.
+  - Filing with unverified document (`Document(status="PENDING")`) -> `evidence_status: "REVIEW_REQUIRED"`.
+  - Filing with missing acknowledgment reference and source evidence -> `evidence_status: "REVIEW_REQUIRED"`.
+  - Filing with official acknowledgment reference (`"AR-2022-9988"`) -> `evidence_status: "VERIFIED"`.
+  - Filing with verified document (`Document(status="VERIFIED")`) -> `evidence_status: "VERIFIED"`.
 
 ### Audit Fix 4 — Strict Evidentiary Separation & AGM Non-Inference
 - **No AGM Date Inference**: Actual AGM dates are never inferred from financial-year strings (*e.g. "2022-2023"*), audit report dates, or DVC codes.
