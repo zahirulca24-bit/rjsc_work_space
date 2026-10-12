@@ -9,7 +9,8 @@ from sqlalchemy import func
 
 from ...db.session import get_db
 from ..deps import get_current_user
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 from ...models.user import User, RoleEnum
 from ...models.work import Work
 from ...models.client import Client
@@ -200,6 +201,19 @@ def get_form_preflight(
         }
     }
 
+def _clean_json_dict(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {str(k): _clean_json_dict(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_clean_json_dict(v) for v in obj]
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, (date, datetime)):
+        return obj.isoformat()
+    elif isinstance(obj, uuid.UUID):
+        return str(obj)
+    return obj
+
 @router.post("/generate/{work_id}/{form_code}")
 def generate_work_form_pdf(
     work_id: uuid.UUID,
@@ -291,7 +305,7 @@ def generate_work_form_pdf(
         status="DRAFT",
         generated_by=current_user.email or current_user.name or "STAFF",
         missing_fields=gen_result["missing_fields"],
-        form_parameters=options
+        form_parameters=_clean_json_dict(options)
     )
     db.add(record)
     db.commit()
