@@ -23,10 +23,13 @@ In Batch 2, Form XVIII, Form XIX, and Form XXVIII were promoted to `LIVE_AUTOFIL
 
 ## Snapshot of reported checks
 Antigravity reported: 166 backend pytest tests passing (100%), 100 frontend tests passing (100%), clean TypeScript check (0 errors) and Next.js build. These counts are verified on branch `feature/core-rjsc-services-batch2`.
+- Detailed Batch 1 Report: `docs/BATCH_1_ACCEPTANCE_REPORT.md` (10/10 automated checks passed, human visual review pending).
+- Detailed Batch 2 Report: `docs/BATCH_2_ACCEPTANCE_REPORT.md` (Core services operational, human visual review pending).
 
 ## Next ordering
 1. Preserve PR #22 unmerged until review.
-2. Fix security/deployment and PDF-template portability risks where needed.
-3. Run real Forms Lab Batch 1 and submission acceptance tests using verified test data, not fabricated evidence.
-4. Reconcile legally applicable AGM/filing and government fee rules.
-5. Develop independent non-billing/non-forms features only after dependencies and project scope are confirmed; keep the billing workstream separate.
+2. Submit PR for Batch 2 with base `feature/za-office-workflow-forms-batch1`.
+3. Fix security/deployment and PDF-template portability risks where needed.
+4. Run real Forms Lab Batch 1 and Batch 2 submission acceptance tests using verified test data, not fabricated evidence.
+5. Reconcile legally applicable AGM/filing and government fee rules.
+6. Develop independent non-billing/non-forms features only after dependencies and project scope are confirmed; keep the billing workstream separate.

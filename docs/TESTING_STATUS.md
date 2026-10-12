@@ -8,6 +8,8 @@ As of 2026-10-13. **Automated test results reported by Antigravity are not equiv
 | Frontend npm test | 100 passed (0 failed) | 9 test suites covering Phase 01–06, Auth, Docs, Finance, Deadlines | Verified locally (tsx test) |
 | Typecheck | 0 errors | TypeScript strict type checking (`tsc --noEmit`) | Verified locally |
 | Next.js build | 0 errors | Production compile (`next build`) | Verified locally |
+| Batch 1 Acceptance Gate | 10/10 automated passed | See `docs/BATCH_1_ACCEPTANCE_REPORT.md` | Automated PASS; Human Visual PENDING |
+| Batch 2 Acceptance Gate | All 3 services operational | See `docs/BATCH_2_ACCEPTANCE_REPORT.md` | Automated PASS; Human Visual PENDING |
 | Browser Worker V3 | 7 navigation routes marked PASS | Page loads only | Does not verify workflows |
 | Browser Worker V4 | 13 page-load checks marked PASS | Form XII, Schedule X, Form 117 were NOT VISIBLE at /working-papers | Forms functionality NOT TESTED |
 | RJSC production portal acceptance | Not performed | Our app does not submit filings | NOT VERIFIED |
