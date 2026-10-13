@@ -326,6 +326,13 @@ def review_generated_form(
             detail="Only Senior staff, Managers or Admins can approve forms for portal upload."
         )
 
+    # A generated form with unresolved required fields must never be approved.
+    if payload.new_status == "APPROVED_FOR_PORTAL_UPLOAD" and record.missing_fields:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot approve form with unresolved missing fields: " + ", ".join(str(x) for x in record.missing_fields)
+        )
+
     record.status = payload.new_status
     record.reviewed_by = current_user.email or current_user.name or "REVIEWER"
     if payload.review_notes:
