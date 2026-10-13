@@ -17,6 +17,7 @@ backend/*.db
 backend/.env
 backend/storage/
 backend/test-storage/
+storage/
 service-account.json
 google-service-account.json
 

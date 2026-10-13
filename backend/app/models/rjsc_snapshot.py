@@ -1,7 +1,8 @@
 import uuid
 from sqlalchemy import Column, String, Date, DateTime, ForeignKey, Boolean, JSON
 from sqlalchemy.dialects.postgresql import UUID
-from app.models.client import utc_now
+from .client import utc_now
+from ..db.base import Base
 from app.db.base import Base
 
 class RjscSnapshot(Base):

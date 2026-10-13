@@ -99,7 +99,15 @@ def create_client(client_in: ClientCreate, db: Session = Depends(get_db)):
         if existing:
             raise HTTPException(status_code=409, detail="Registration number already exists")
 
+    # Duplicate legal name detection is advisory; we do not block creation.
+    # The check_duplicate_name helper can be used by the frontend to warn the user.
+    # duplicates = check_duplicate_name(db, client_in.legal_name)
+    # if duplicates:
+    #     raise HTTPException(status_code=409, detail={"msg": "Duplicate client name detected", "duplicates": duplicates})
+
     client_code = generate_client_code(db)
+
+
 
     while db.execute(select(Client).where(Client.client_code == client_code)).scalars().first():
         num = int(client_code.split("-")[1])

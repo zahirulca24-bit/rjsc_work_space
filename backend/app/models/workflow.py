@@ -2,8 +2,8 @@ import uuid
 from sqlalchemy import Column, String, Date, DateTime, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from app.models.client import utc_now
-from app.db.base import Base
+from .client import utc_now
+from ..db.base import Base
 
 class Task(Base):
     __tablename__ = "tasks"

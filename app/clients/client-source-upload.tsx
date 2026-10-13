@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, FileImage, FileText, Upload } from "lucide-react";
 import { EntityType } from "@/lib/rjsc/types";
-import { createClient } from "@/lib/api/clients";
+import { createClient, addClientHistory } from "@/lib/api/clients";
 import { uploadDocument } from "@/lib/api/documents";
 import { fieldClass, PrimaryButton } from "@/components/UI";
 import { fetchApi } from "@/lib/api/fetchApi";
@@ -28,6 +28,10 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
   const [regNo, setRegNo] = useState("");
   const [entityType, setEntityType] = useState<EntityType>(EntityType.PRIVATE_COMPANY);
   const [incorporationDate, setIncorporationDate] = useState("");
+  const [registeredOffice, setRegisteredOffice] = useState("");
+  const [authCapital, setAuthCapital] = useState<number | string>("");
+  const [paidCapital, setPaidCapital] = useState<number | string>("");
+  const [extractedDirectors, setExtractedDirectors] = useState<any[]>([]);
   const [category, setCategory] = useState("INCORPORATION");
   const [notes, setNotes] = useState("");
   const [confirmed, setConfirmed] = useState(false);
@@ -85,10 +89,25 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
       if (typeof fields.incorporation_date === "string" && fields.incorporation_date.trim()) {
         setIncorporationDate(fields.incorporation_date.trim()); found.push("Incorporation Date");
       }
+      if (fields.entity_type) {
+        setEntityType(fields.entity_type as EntityType); found.push("Entity Type");
+      }
+      if (fields.registered_office) {
+        setRegisteredOffice(fields.registered_office); found.push("Registered Office");
+      }
+      if (fields.authorized_capital) {
+        setAuthCapital(fields.authorized_capital); found.push("Authorized Capital");
+      }
+      if (fields.paid_up_capital) {
+        setPaidCapital(fields.paid_up_capital); found.push("Paid-up Capital");
+      }
+      if (fields.directors && fields.directors.length > 0) {
+        setExtractedDirectors(fields.directors); found.push(`${fields.directors.length} Director(s)`);
+      }
       setExtractedFields(found);
       setExtractionMessage(
         found.length
-          ? `Suggested from source: ${found.join(", ")}. Please check every value against the PDF before confirming.`
+          ? `Auto-extracted fields: ${found.join(", ")}. Please review every value against the document before confirming.`
           : (result.message || "No fields extracted. Enter missing details manually.")
       );
     } catch (err: unknown) {
@@ -125,6 +144,18 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     if (saving || extracting || createdClientId || !file || !confirmed || duplicate || !name.trim()) return;
+    const capitalProvided = authCapital !== "" || paidCapital !== "";
+    if (capitalProvided && (
+      !incorporationDate ||
+      authCapital === "" || paidCapital === "" ||
+      !Number.isFinite(Number(authCapital)) ||
+      !Number.isFinite(Number(paidCapital)) ||
+      Number(authCapital) <= 0 || Number(paidCapital) < 0 ||
+      Number(paidCapital) > Number(authCapital)
+    )) {
+      setError("Provide valid authorized and paid-up capital (paid-up ≤ authorized) and verified incorporation date before saving capital history.");
+      return;
+    }
     setError("");
     setSaving(true);
     let newClient: any;
@@ -135,9 +166,18 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
         entity_type: entityType,
         registration_no: regNo.trim() || undefined,
         incorporation_date: incorporationDate || undefined,
+        registered_office_text: registeredOffice.trim() || undefined,
         status: "ACTIVE",
       });
       setCreatedClientId(newClient.id);
+      if (capitalProvided) {
+        await addClientHistory(newClient.id, "capital-history", {
+          authorized_capital: Number(authCapital),
+          paid_up_capital: Number(paidCapital),
+          effective_date: incorporationDate,
+          change_type: "INITIAL",
+        });
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Could not create client.");
       setSaving(false);
@@ -211,10 +251,27 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
             <option value="OTHER">Other Source / Screenshot</option>
           </select>
         </label>
-        <label className="text-sm font-bold">Source Notes (optional)
+        <label className="text-sm font-bold">Registered Office (if detected)
+          <input className={fieldClass} value={registeredOffice} disabled={Boolean(createdClientId)} onChange={e => setRegisteredOffice(e.target.value)} placeholder="Office Address from PDF" />
+        </label>
+        <label className="text-sm font-bold">Authorized Capital (BDT)
+          <input type="number" className={fieldClass} value={authCapital} disabled={Boolean(createdClientId)} onChange={e => setAuthCapital(e.target.value)} placeholder="e.g. 10000000" />
+        </label>
+        <label className="text-sm font-bold">Paid-up Capital (BDT)
+          <input type="number" className={fieldClass} value={paidCapital} disabled={Boolean(createdClientId)} onChange={e => setPaidCapital(e.target.value)} placeholder="e.g. 5000000" />
+        </label>
+        <label className="text-sm font-bold sm:col-span-2">Source Notes (optional)
           <input className={fieldClass} value={notes} disabled={Boolean(createdClientId)} onChange={e => setNotes(e.target.value)} placeholder="Origin of screenshot / PDF" />
         </label>
       </div>
+      {extractedDirectors.length > 0 && (
+        <div className="rounded-xl border border-[#b8dfc6] bg-[#e7f5ec] p-3 text-xs">
+          <span className="font-bold text-[#234a32]">Detected Directors ({extractedDirectors.length}): </span>
+          {extractedDirectors.map((d: any) => d.full_name).join(", ")}
+          <span className="ml-1 text-[#44765b]">(Review and record under Corporate History after client creation)</span>
+        </div>
+      )}
+
       {duplicate && !createdClientId && (
         <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
           <AlertTriangle className="mr-2 inline h-4 w-4" />

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import Column, String, Date, DateTime, Text, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from app.db.base import Base
+from ..db.base import Base
 
 class EntityType(str, enum.Enum):
     PRIVATE_COMPANY = "PRIVATE_COMPANY"
@@ -50,7 +50,11 @@ class Client(Base):
     annual_returns = relationship("AnnualReturnHistory", back_populates="client")
     filings = relationship("RjscFilingHistory", back_populates="client")
     mortgage_charges = relationship("MortgageChargeHistory", back_populates="client")
+    share_transfers = relationship("ShareTransferHistory", back_populates="client")
     compliance_issues = relationship("ComplianceIssue", back_populates="client")
     documents = relationship("Document", back_populates="client")
     invoices = relationship("Invoice", back_populates="client")
     transactions = relationship("Transaction", back_populates="client")
+    working_papers = relationship("WorkingPaper", back_populates="client")
+    generated_forms = relationship("GeneratedFormRecord", back_populates="client")
+    submissions = relationship("WorkSubmissionRecord", back_populates="client")

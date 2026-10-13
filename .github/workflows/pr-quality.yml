@@ -1,0 +1,108 @@
+name: PR Quality Checks
+
+on:
+  push:
+    branches:
+      - feature/za-office-workflow-forms-batch1
+      - feature/core-rjsc-services-batch2
+  pull_request:
+    branches:
+      - main
+      - feature/za-office-workflow-forms-batch1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Create synthetic CI-only PDF templates
+        env:
+          RJSC_TEMPLATE_DIR: ${{ runner.temp }}/rjsc-ci-templates
+        run: python tests/create_ci_templates.py
+      - name: Run full backend pytest
+        env:
+          RJSC_TEMPLATE_DIR: ${{ runner.temp }}/rjsc-ci-templates
+          RJSC_STORAGE_DIR: ${{ runner.temp }}/rjsc-generated
+        run: python -m pytest tests -v
+
+  frontend-tests-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Run frontend tests
+        run: npm test
+      - name: Run TypeScript typecheck
+        run: npm run typecheck
+      - name: Build production frontend
+        run: npm run build
+
+  database-migration-check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_test_only
+          POSTGRES_DB: rjsc_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d rjsc_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 6
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:ci_test_only@localhost:5432/rjsc_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Upgrade PostgreSQL database through Alembic
+        run: python -m alembic upgrade head
+      - name: Verify actual persisted schema
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, inspect
+          db = inspect(create_engine(os.environ["DATABASE_URL"]))
+          for table in ("working_papers", "generated_forms", "work_submissions", "work_queries", "work_deliveries"):
+              assert db.has_table(table), f"Missing migrated table: {table}"
+          if os.getenv("GITHUB_REF_NAME") == "feature/core-rjsc-services-batch2":
+              assert db.has_table("share_transfer_history")
+              assert {"work_id", "evidence_status", "actual_agm_date"}.issubset(
+                  {c["name"] for c in db.get_columns("annual_return_history")}
+              )
+              assert {"work_id", "charge_type", "statutory_form_code"}.issubset(
+                  {c["name"] for c in db.get_columns("mortgage_charge_history")}
+              )
+          print("Migration schema verification PASSED")
+          PY

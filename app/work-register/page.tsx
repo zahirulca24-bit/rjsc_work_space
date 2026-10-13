@@ -6,8 +6,9 @@ import { Search, FolderOpen, BriefcaseBusiness, CheckCircle2, CircleDollarSign, 
 import { getWorks } from "@/lib/api/works";
 import { getClients } from "@/lib/api/clients";
 import { PageHeader, ContentCard, StatCard, StatusBadge, EmptyState, LoadingState, Table, Th, Td } from "@/components/SharedUI";
-import { NewWorkForm } from "@/components/NewWorkForm";
+import { StepWorkCreation } from "@/components/StepWorkCreation";
 import { ReviewModal } from "@/components/ReviewModal";
+
 
 export default function WorkRegisterPage() {
   const [works, setWorks] = useState<any[]>([]);
@@ -55,9 +56,10 @@ export default function WorkRegisterPage() {
     });
   }, [search, statusFilter, works, clientMap]);
 
-  const inProgress = works.filter(w => w.status === "In Progress").length;
-  const pendingCheck = works.filter(w => w.status === "Pending Check").length;
-  const completed = works.filter(w => w.status === "Completed").length;
+  const inPrep = works.filter(w => w.status === "In Progress" || w.status === "In Preparation").length;
+  const pendingReview = works.filter(w => w.status === "Pending Check" || w.status === "Under Review" || w.status === "Ready for Submission").length;
+  const submitted = works.filter(w => w.status === "Submitted" || w.status === "Query/Follow-up").length;
+  const closedDelivered = works.filter(w => w.status === "Delivered" || w.status === "Closed" || w.status === "Completed").length;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-12">
@@ -71,9 +73,9 @@ export default function WorkRegisterPage() {
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <StatCard title="Total Works" value={works.length} icon={BriefcaseBusiness} color="aqua" />
-        <StatCard title="In Progress" value={inProgress} icon={CircleDollarSign} color="yellow" />
-        <StatCard title="Pending Review" value={pendingCheck} icon={FolderOpen} color="coral" />
-        <StatCard title="Completed" value={completed} icon={CheckCircle2} color="sage" />
+        <StatCard title="In Preparation" value={inPrep} icon={CircleDollarSign} color="yellow" />
+        <StatCard title="Under Review" value={pendingReview} icon={FolderOpen} color="coral" />
+        <StatCard title="Submitted / Query" value={submitted} icon={CheckCircle2} color="sage" />
       </div>
 
       <ContentCard>
@@ -96,9 +98,13 @@ export default function WorkRegisterPage() {
                className="px-3 py-2 text-sm border border-[#d9e3df] rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#79b993]"
              >
                <option value="All">All Statuses</option>
-               <option value="Pending Check">Pending Check</option>
-               <option value="In Progress">In Progress</option>
-               <option value="Completed">Completed</option>
+               <option value="In Preparation">In Preparation</option>
+               <option value="Under Review">Under Review</option>
+               <option value="Ready for Submission">Ready for Submission</option>
+               <option value="Submitted">Submitted (RJSC Portal)</option>
+               <option value="Query/Follow-up">Query / Follow-up</option>
+               <option value="Delivered">Delivered to Client</option>
+               <option value="Closed">Closed</option>
              </select>
           </div>
         </div>
@@ -114,16 +120,19 @@ export default function WorkRegisterPage() {
                 <Th>Work ID & Client</Th>
                 <Th>Service</Th>
                 <Th>Assigned</Th>
-                <Th>Status</Th>
+                <Th>Status & Review</Th>
                 <Th>Govt Fee</Th>
                 <Th>Total Bill</Th>
+                <Th className="text-right">Action</Th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((w) => (
-                <tr key={w.id}>
+                <tr key={w.id} className="hover:bg-[#f7fdfa] transition">
                   <Td>
-                    <div className="font-black text-[#181818]">{w.work_code}</div>
+                    <Link href={`/work-register/${w.id}`} className="font-black text-[#181818] hover:text-[#447a5d] hover:underline flex items-center gap-1.5">
+                      {w.work_code}
+                    </Link>
                     <Link href={`/clients/${w.client_id}`} className="text-[#447a5d] text-xs hover:underline font-bold mt-0.5 inline-block">
                       {clientMap[w.client_id] || "Unknown Client"}
                     </Link>
@@ -136,13 +145,28 @@ export default function WorkRegisterPage() {
                     <span className="font-bold">{w.assigned_to || "-"}</span>
                   </Td>
                   <Td>
-                    <StatusBadge status={w.status} />
+                    <div className="flex flex-col gap-1 items-start">
+                      <StatusBadge status={w.status} />
+                      {w.review_status && w.review_status !== "DRAFT" && (
+                        <span className="text-[10px] font-bold text-[#447a5d] bg-[#eef7f3] px-2 py-0.5 rounded-full">
+                          {w.review_status.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                    </div>
                   </Td>
                   <Td className="font-mono">
                     {w.government_fee !== null ? `৳ ${parseFloat(w.government_fee).toLocaleString()}` : 'Unknown'}
                   </Td>
                   <Td className="font-mono font-black text-[#181818]">
                     {w.total_bill !== null ? `৳ ${parseFloat(w.total_bill).toLocaleString()}` : 'Pending'}
+                  </Td>
+                  <Td className="text-right">
+                    <Link
+                      href={`/work-register/${w.id}`}
+                      className="inline-flex items-center gap-1 rounded-xl bg-[#eef7f3] px-3 py-1.5 text-xs font-bold text-[#447a5d] hover:bg-[#dff1e7] transition"
+                    >
+                      Manage Work
+                    </Link>
                   </Td>
                 </tr>
               ))}
@@ -164,13 +188,14 @@ export default function WorkRegisterPage() {
               </button>
             </div>
             <div className="p-6 overflow-y-auto bg-transparent">
-              <NewWorkForm
+              <StepWorkCreation
                 onSuccess={() => {
                   setIsModalOpen(false);
                   fetchAll();
                 }}
                 onCancel={() => setIsModalOpen(false)}
               />
+
             </div>
           </div>
         </div>

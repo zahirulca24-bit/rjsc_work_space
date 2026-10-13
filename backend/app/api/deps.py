@@ -4,8 +4,8 @@ import jwt
 from pydantic import ValidationError
 from typing import Generator
 from app.db.session import get_db
-from app.core.config import settings
-from app.models.user import User, RoleEnum
+from ..core.config import settings
+from ..models.user import User, RoleEnum
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     token = request.cookies.get("access_token")

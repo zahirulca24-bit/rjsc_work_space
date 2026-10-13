@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -313,9 +314,12 @@ export default function TasksPage() {
                     <div className="font-black text-[#181818]">
                       {task.title}
                     </div>
-                    <div className="mt-1 text-xs font-bold text-[#447a5d]">
+                    <Link
+                      href={`/work-register/${task.work_id}`}
+                      className="mt-1 inline-block text-xs font-bold text-[#447a5d] hover:underline"
+                    >
                       {task.work_code || task.work_id}
-                    </div>
+                    </Link>
                   </Td>
 
                   <Td>

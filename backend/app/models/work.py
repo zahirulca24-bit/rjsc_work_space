@@ -3,8 +3,8 @@ from sqlalchemy import Column, String, Date, DateTime, Text, Numeric, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.types import JSON
 from sqlalchemy.orm import relationship
-from app.models.client import utc_now
-from app.db.base import Base
+from .client import utc_now
+from ..db.base import Base
 
 def JSONVariant():
     return JSON().with_variant(JSONB, 'postgresql')
@@ -40,6 +40,11 @@ class Work(Base):
     reviews = relationship("WorkReview", back_populates="work")
     invoices = relationship("Invoice", back_populates="work")
     transactions = relationship("Transaction", back_populates="work")
+    working_papers = relationship("WorkingPaper", back_populates="work")
+    generated_forms = relationship("GeneratedFormRecord", back_populates="work", cascade="all, delete-orphan")
+    submissions = relationship("WorkSubmissionRecord", back_populates="work", cascade="all, delete-orphan")
+    queries = relationship("WorkQueryRecord", back_populates="work", cascade="all, delete-orphan")
+    delivery = relationship("WorkDeliveryRecord", back_populates="work", uselist=False, cascade="all, delete-orphan")
 
 class WorkRuleSnapshot(Base):
     __tablename__ = "work_rule_snapshots"

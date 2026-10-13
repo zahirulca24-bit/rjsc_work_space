@@ -12,6 +12,7 @@ class WorkBase(BaseModel):
     period_or_year: Optional[str] = None
     assigned_to: Optional[str] = None
     status: str
+    review_status: Optional[str] = "DRAFT"
     professional_fee: Decimal = Decimal('0')
     government_fee: Optional[Decimal] = None
     other_cost: Decimal = Decimal('0')
