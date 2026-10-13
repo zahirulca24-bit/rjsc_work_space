@@ -30,6 +30,7 @@ export default function MortgageChargeServicePanel({ workId, onSaved }: Mortgage
   const [securedAmount, setSecuredAmount] = useState<number>(10000000);
   const [instrumentType, setInstrumentType] = useState("Deed of Mortgage / Letter of Hypothecation");
   const [instrumentDate, setInstrumentDate] = useState("");
+  const [originalInstrumentDate, setOriginalInstrumentDate] = useState("");
   const [registrationDate, setRegistrationDate] = useState("");
   const [filingReference, setFilingReference] = useState("");
   const [propertyDescription, setPropertyDescription] = useState("");
@@ -52,6 +53,7 @@ export default function MortgageChargeServicePanel({ workId, onSaved }: Mortgage
         setSecuredAmount(ac.secured_amount);
         setInstrumentType(ac.instrument_type || "Deed of Mortgage / Letter of Hypothecation");
         setInstrumentDate(ac.instrument_date || "");
+        setOriginalInstrumentDate(ac.creation_date || "");
         setRegistrationDate(ac.registration_date || "");
         setFilingReference(ac.filing_reference || "");
         setPropertyDescription(ac.property_description || "");
@@ -90,6 +92,8 @@ export default function MortgageChargeServicePanel({ workId, onSaved }: Mortgage
         secured_amount: securedAmount,
         instrument_type: instrumentType || undefined,
         instrument_date: instrumentDate || undefined,
+        original_instrument_date: chargeType === "MODIFICATION" ? originalInstrumentDate || undefined : undefined,
+        modification_date: chargeType === "MODIFICATION" ? instrumentDate || undefined : undefined,
         registration_date: registrationDate || undefined,
         filing_reference: filingReference || undefined,
         property_description: propertyDescription || undefined,
@@ -297,6 +301,20 @@ export default function MortgageChargeServicePanel({ workId, onSaved }: Mortgage
                   />
                 </div>
               </div>
+
+              {chargeType === "MODIFICATION" && (
+                <div>
+                  <label className="block text-xs font-bold uppercase text-[#6c7671] mb-1">
+                    Original Mortgage Deed Date (not modification date)
+                  </label>
+                  <input
+                    type="date"
+                    value={originalInstrumentDate}
+                    onChange={(e) => setOriginalInstrumentDate(e.target.value)}
+                    className="w-full rounded-xl border border-[#d9e3df] bg-white px-3 py-2 text-xs font-semibold text-[#181818]"
+                  />
+                </div>
+              )}
 
               {/* Property Description */}
               <div>
