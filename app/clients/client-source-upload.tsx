@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, FileImage, FileText, Upload } from "lucide-react";
 import { EntityType } from "@/lib/rjsc/types";
-import { createClient } from "@/lib/api/clients";
+import { createClient, addClientHistory } from "@/lib/api/clients";
 import { uploadDocument } from "@/lib/api/documents";
 import { fieldClass, PrimaryButton } from "@/components/UI";
 import { fetchApi } from "@/lib/api/fetchApi";
@@ -144,6 +144,18 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
     if (saving || extracting || createdClientId || !file || !confirmed || duplicate || !name.trim()) return;
+    const capitalProvided = authCapital !== "" || paidCapital !== "";
+    if (capitalProvided && (
+      !incorporationDate ||
+      authCapital === "" || paidCapital === "" ||
+      !Number.isFinite(Number(authCapital)) ||
+      !Number.isFinite(Number(paidCapital)) ||
+      Number(authCapital) <= 0 || Number(paidCapital) < 0 ||
+      Number(paidCapital) > Number(authCapital)
+    )) {
+      setError("Provide valid authorized and paid-up capital (paid-up ≤ authorized) and verified incorporation date before saving capital history.");
+      return;
+    }
     setError("");
     setSaving(true);
     let newClient: any;
@@ -158,6 +170,14 @@ export default function ClientSourceUpload({ existingClients, onClose, onSuccess
         status: "ACTIVE",
       });
       setCreatedClientId(newClient.id);
+      if (capitalProvided) {
+        await addClientHistory(newClient.id, "capital-history", {
+          authorized_capital: Number(authCapital),
+          paid_up_capital: Number(paidCapital),
+          effective_date: incorporationDate,
+          change_type: "INITIAL",
+        });
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Could not create client.");
       setSaving(false);
