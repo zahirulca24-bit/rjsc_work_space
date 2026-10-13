@@ -856,8 +856,8 @@ def generate_form_xix(
 
     lender = overrides.get("lender") or options.get("lender") or "Bank / Financial Institution"
     secured_amount = overrides.get("secured_amount") or options.get("secured_amount") or 0.0
-    instrument_date = overrides.get("instrument_date") or options.get("instrument_date") or datetime.date.today().isoformat()
-    mod_date = overrides.get("modification_date") or options.get("modification_date") or datetime.date.today().isoformat()
+    instrument_date = overrides.get("original_instrument_date") or options.get("original_instrument_date")
+    mod_date = overrides.get("modification_date") or options.get("modification_date")
     mod_details = overrides.get("modification_details") or options.get("modification_details") or "Enhancement / Restructuring of credit facilities as per supplementary deed."
     property_desc = overrides.get("property_description") or options.get("property_description") or "As per original registered charge"
 
