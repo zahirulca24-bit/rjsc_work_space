@@ -509,18 +509,21 @@ def record_final_decision_and_delivery(
 
     # If approved or certified copy issued, update/create Corporate History filing record
     if payload.outcome in ["APPROVED", "CERTIFIED_COPY_ISSUED"]:
-        filing_record = RjscFilingHistory(
-            client_id=client.id,
-            service_type=work.service_id,
-            form_name=f"Filing for Work {work.work_code}",
-            effective_date=payload.outcome_date,
-            submission_date=work.submitted_at.date() if work.submitted_at else payload.outcome_date,
-            approval_date=payload.outcome_date,
-            status="APPROVED",
-            reference=payload.rjsc_approval_ref or f"Approval for {work.work_code}",
-            notes=f"Delivery via {payload.delivery_method or 'N/A'}. Client Ack Ref: {payload.client_ack_ref or 'Pending'}. {payload.notes or ''}".strip()
-        )
-        db.add(filing_record)
+        # Editing a delivery must not duplicate the same statutory filing.
+        filing_record = None
+        if existing_delivery and existing_delivery.corporate_history_filing_id:
+            filing_record = db.get(RjscFilingHistory, existing_delivery.corporate_history_filing_id)
+        if filing_record is None:
+            filing_record = RjscFilingHistory(client_id=client.id)
+            db.add(filing_record)
+        filing_record.service_type = work.service_id
+        filing_record.form_name = f"Filing for Work {work.work_code}"
+        filing_record.effective_date = payload.outcome_date
+        filing_record.submission_date = work.submitted_at.date() if work.submitted_at else payload.outcome_date
+        filing_record.approval_date = payload.outcome_date
+        filing_record.status = "APPROVED"
+        filing_record.reference = payload.rjsc_approval_ref or f"Approval for {work.work_code}"
+        filing_record.notes = f"Delivery via {payload.delivery_method or 'N/A'}. Client Ack Ref: {payload.client_ack_ref or 'Pending'}. {payload.notes or ''}".strip()
         db.flush()
         filing_id = filing_record.id
 
