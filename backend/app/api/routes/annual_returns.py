@@ -2,7 +2,9 @@ import uuid
 from typing import List, Dict, Any, Optional
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from datetime import datetime, timezone
+import re
 from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
 
@@ -10,6 +12,8 @@ from ...db.session import get_db
 from ..deps import get_current_user
 from ...models.user import User
 from ...models.client import Client
+from ...models.document import Document
+from ...models.user import RoleEnum
 from ...models.work import Work, WorkChecklist
 from ...models.corporate_history import AnnualReturnHistory, AgmHistory, Director, Shareholder, CapitalHistory
 from ...models.working_paper import WorkingPaper
@@ -23,6 +27,102 @@ class AnnualReturnWorkCreateRequest(BaseModel):
     assigned_to: Optional[str] = None
     professional_fee: Optional[float] = 0.0
     notes: Optional[str] = None
+
+class RjscOnlineRecordVerificationRequest(BaseModel):
+    """Manual, evidence-backed verification of periods visible in RJSC online records."""
+    schedule_x_document_id: uuid.UUID
+    schedule_x_document_date: date
+    verified_financial_years: List[str] = Field(min_length=1)
+    form_xii_document_id: Optional[uuid.UUID] = None
+    form_xii_document_date: Optional[date] = None
+
+
+def _verified_rjsc_document(db: Session, client_id: uuid.UUID, doc_id: uuid.UUID) -> Document:
+    doc = db.get(Document, doc_id)
+    if not doc or doc.client_id != client_id:
+        raise HTTPException(status_code=400, detail="Evidence must belong to this client")
+    if (
+        doc.status != "VERIFIED"
+        or not doc.storage_reference
+        or not doc.file_hash
+        or doc.mime_type not in ("application/pdf", "image/jpeg", "image/png")
+    ):
+        raise HTTPException(status_code=400, detail="Upload and review the authentic RJSC screenshot/PDF before verification")
+    return doc
+
+
+@router.post("/verify-rjsc-online-record/{client_id}")
+def verify_rjsc_online_record(
+    client_id: uuid.UUID,
+    payload: RjscOnlineRecordVerificationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Save reviewed RJSC Schedule X periods once, without inventing AGM/filing dates.
+
+    Dates shown in a certified-copy *list* identify documents, not necessarily
+    the financial year or formal acceptance date. Reviewer explicitly identifies
+    each evidenced financial year; Form XII does not verify Schedule X periods.
+    """
+    if current_user.role not in (RoleEnum.ADMIN, RoleEnum.MANAGER, RoleEnum.SENIOR):
+        raise HTTPException(status_code=403, detail="Senior, Manager or Admin verification required")
+    client = db.get(Client, client_id)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    schedule = _verified_rjsc_document(db, client_id, payload.schedule_x_document_id)
+    form_xii = None
+    if payload.form_xii_document_id:
+        form_xii = _verified_rjsc_document(db, client_id, payload.form_xii_document_id)
+        if payload.form_xii_document_date is None:
+            raise HTTPException(status_code=400, detail="Form XII document date required")
+    if payload.form_xii_document_date and not form_xii:
+        raise HTTPException(status_code=400, detail="Form XII evidence document required")
+
+    years = list(dict.fromkeys(payload.verified_financial_years))
+    if len(years) > 25:
+        raise HTTPException(status_code=400, detail="Maximum 25 verified periods at a time")
+    for year in years:
+        if not re.fullmatch(r"\\d{4}-\\d{4}", year) or int(year[5:]) != int(year[:4]) + 1:
+            raise HTTPException(status_code=400, detail=f"Invalid financial year: {year}")
+        if year not in get_financial_years_range(client.incorporation_date):
+            raise HTTPException(status_code=400, detail=f"Year outside incorporation-to-current range: {year}")
+        # A document cannot demonstrate a fiscal period that has not ended.
+        if date(int(year[5:]), 6, 30) > payload.schedule_x_document_date:
+            raise HTTPException(status_code=400, detail=f"Schedule X date precedes year-end of {year}")
+
+    for year in years:
+        ar = db.query(AnnualReturnHistory).filter(
+            AnnualReturnHistory.client_id == client_id,
+            AnnualReturnHistory.financial_year == year
+        ).first()
+        if ar is None:
+            ar = AnnualReturnHistory(client_id=client_id, financial_year=year)
+            db.add(ar)
+        elif ar.filing_status == "FILED" and ar.evidence_status == "VERIFIED":
+            # Do not overwrite a completed, already-evidenced filing.
+            if str(ar.source_evidence) != str(schedule.id):
+                raise HTTPException(status_code=409, detail=f"{year} already verified with different evidence")
+        ar.filing_status = "FILED"
+        ar.evidence_status = "VERIFIED"
+        ar.source_evidence = str(schedule.id)
+        ar.notes = (
+            (ar.notes + "\\n" if ar.notes else "")
+            + f"RJSC online Schedule X certified-copy list, document date "
+            + f"{payload.schedule_x_document_date.isoformat()}, reviewed by {current_user.email}. "
+            + "Financial year confirmed by reviewer; document date is NOT filing date."
+        )
+        # Never set ar.filed_date or ar.actual_agm_date from a list's document date.
+
+    db.commit()
+    return {
+        "verified_financial_years": years,
+        "source_document_id": str(schedule.id),
+        "schedule_x_document_date": payload.schedule_x_document_date.isoformat(),
+        "form_xii_document_id": str(form_xii.id) if form_xii else None,
+        "form_xii_document_date": payload.form_xii_document_date.isoformat() if form_xii else None,
+        "message": "Reviewed RJSC online record saved; no AGM or filing date inferred."
+    }
+
 
 def get_financial_years_range(incorp_date: Optional[date]) -> List[str]:
     """
@@ -113,7 +213,14 @@ def get_annual_return_assessment(
         status_val = "EVIDENCE_UNCERTAIN"
         evidence_status = "EVIDENCE_UNCERTAIN"
 
-        if filed_date:
+        if (ar and ar.filing_status == "FILED" and ar.evidence_status == "VERIFIED"
+                and has_verified_filing_document(db, client.id, source_ev, ar.work_id)):
+            status_val = "FILED"
+            evidence_status = "VERIFIED"
+            filed_count += 1
+            if due_date and filed_date and filed_date > due_date:
+                delay_days = (filed_date - due_date).days
+        elif filed_date:
             status_val = "FILED"
             filed_count += 1
             # Provenance / Acknowledgment verification:
@@ -149,6 +256,8 @@ def get_annual_return_assessment(
             statutory_late_fee = 0.0
 
         statutory_notes = []
+        if status_val == "FILED" and evidence_status == "VERIFIED" and not filed_date:
+            statutory_notes.append("Verified RJSC online Schedule X record; actual submission/AGM dates not inferred from document list.")
         if actual_agm_date and due_date:
             statutory_notes.append(f"Sec 36 Deadline: {due_date.isoformat()} (AGM {actual_agm_date.isoformat()} + 21 days)")
         else:
@@ -215,6 +324,16 @@ def create_annual_return_work(
 
     if not payload.financial_years:
         raise HTTPException(status_code=400, detail="At least one financial year must be selected")
+
+    for fy in payload.financial_years:
+        verified = db.query(AnnualReturnHistory).filter(
+            AnnualReturnHistory.client_id == client_id,
+            AnnualReturnHistory.financial_year == fy,
+            AnnualReturnHistory.filing_status == "FILED",
+            AnnualReturnHistory.evidence_status == "VERIFIED"
+        ).first()
+        if verified and has_verified_filing_document(db, client_id, verified.source_evidence, verified.work_id):
+            raise HTTPException(status_code=409, detail=f"{fy} is already RJSC verified; no repeat filing work")
 
     years_str = ", ".join(payload.financial_years) if len(payload.financial_years) > 1 else payload.financial_years[0]
     work_code = generate_work_code(db)
