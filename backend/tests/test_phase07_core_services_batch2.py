@@ -188,6 +188,10 @@ def test_annual_return_assessment_and_work_creation(db_session):
     assert y_curr["due_date"] is None
     assert y_curr["filing_status"] == "EVIDENCE_UNCERTAIN"
 
+    # Verify bundled forms in assessment
+    assert y_22["bundled_forms"] == ["SCHEDULE_X", "BALANCE_SHEET", "PROFIT_LOSS", "FORM_23B"]
+    assert "FORM_XII" not in y_22["bundled_forms"]
+
     # 4. Create Multi-year Annual Return Work Order
     create_work_resp = client.post(f"/api/annual-returns/create-work/{client_id}", json={
         "financial_years": ["2022-2023", "2023-2024"],
@@ -200,13 +204,20 @@ def test_annual_return_assessment_and_work_creation(db_session):
     assert work_info["service_id"] == "annual-return"
     work_id = work_info["work_id"]
 
-    # Verify Checklist items
+    # Verify Checklist items (statutory annual return bundle)
     chk_resp = client.get(f"/api/works/{work_id}/checklist")
     assert chk_resp.status_code == 200
     chk_items = chk_resp.json()
     assert len(chk_items) >= 5
     codes = [i["item_code"] for i in chk_items]
+    texts = [i["item_text"] for i in chk_items]
     assert "AR-CHK-01" in codes
+    # Verify Form XII is NOT routinely required in Annual Return checklist
+    assert not any("Form XII" in t for t in texts)
+    assert any("Schedule X" in t for t in texts)
+    assert any("Audited Balance Sheet" in t for t in texts)
+    assert any("Profit & Loss Account" in t for t in texts)
+    assert any("Form 23B" in t for t in texts)
 
 def test_share_transfer_reconciliation_and_authorized_apply(db_session):
     # 1. Create Client with Shareholders

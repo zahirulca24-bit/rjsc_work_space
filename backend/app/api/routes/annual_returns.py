@@ -287,7 +287,7 @@ def get_annual_return_assessment(
             "acknowledgement_reference": ack_ref,
             "source_evidence": source_ev,
             "statutory_basis": " | ".join(statutory_notes),
-            "bundled_forms": ["FORM_XII", "SCHEDULE_X", "FORM_23B"],
+            "bundled_forms": ["SCHEDULE_X", "BALANCE_SHEET", "PROFIT_LOSS", "FORM_23B"],
             "existing_history_id": str(ar.id) if ar else None,
             "work_id": str(ar.work_id) if (ar and ar.work_id) else None
         })
@@ -316,7 +316,8 @@ def create_annual_return_work(
     """
     Creates an integrated Annual Return Work order for selected financial year(s)
     without duplicating the Client Master record.
-    Bundles Form XII, Schedule X, and Form 23B in statutory checklist and working papers.
+    Bundles Schedule X, Audited Balance Sheet, Profit & Loss Account, and Form 23B
+    in statutory checklist and working papers. (Form XII is reserved for Directorship changes).
     """
     client = db.get(Client, client_id)
     if not client:
@@ -356,10 +357,10 @@ def create_annual_return_work(
     # Create Statutory Checklist items
     checklist_items = [
         ("Verify Signed AGM Minutes & Attendance Record", "Section 81 Companies Act, 1994"),
-        ("Verify Audited Financial Statements with DVC Document Code", "ICAB / RJSC DVC Guideline"),
-        ("Draft Form XII (Particulars of Directors and Officers)", "Section 115 Companies Act, 1994"),
-        ("Draft Schedule X (Annual Summary of Share Capital & Members)", "Section 36 Companies Act, 1994"),
-        ("Draft Form 23B (Statutory Notice of Auditor Appointment)", "Section 210(2) Companies Act, 1994"),
+        ("Verify Audited Balance Sheet with DVC", "ICAB DVS / Sec 185, 186, 190 Companies Act, 1994 (Laid before AGM)"),
+        ("Verify Profit & Loss Account / Income Statement with DVC", "ICAB DVS / Sec 185, 186, 190 Companies Act, 1994 (Laid before AGM)"),
+        ("Draft Schedule X (Annual Summary of Share Capital & Members)", "Section 36(1) Companies Act, 1994 (Within 21 days of AGM)"),
+        ("Draft Form 23B (Statutory Notice of Auditor Appointment)", "Section 210(2) Companies Act, 1994 (Within 30 days of Appointment)"),
         ("Internal Partner Review & Client Approval Sign-off", "ZA Quality Assurance Standard"),
         ("Manual RJSC Portal Upload & Government Challan Payment", "RJSC e-Services Portal Manual Filing"),
         ("Record RJSC Acknowledgement Number & Delivery to Client", "Office Registry Follow-up")

@@ -171,7 +171,7 @@ def build_working_paper_snapshot(db: Session, work: Work, user_name: Optional[st
         calculation_notes.append("Statutory Principle: Audit/DVC date does not constitute evidence of AGM.")
 
         suggested_action = (
-            "Ready for Schedule X & Form XII drafting"
+            "Ready for Schedule X & Annual Return drafting"
             if compliance_assessment == "COMPLIANT" or compliance_assessment == "PENDING_FILING"
             else "Verify signed AGM minutes from company records"
         )

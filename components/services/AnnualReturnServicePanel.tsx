@@ -4,13 +4,14 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   FileText, CheckCircle2, AlertTriangle, Clock, RefreshCw, Plus,
-  ShieldCheck, ShieldAlert, ArrowRight, ExternalLink, Calendar, Layers
+  ShieldCheck, ShieldAlert, ArrowRight, ExternalLink, Calendar, Layers,
+  Upload
 } from "lucide-react";
 import {
   getAnnualReturnAssessment, createAnnualReturnWork, verifyRjscOnlineRecord,
   AnnualReturnAssessmentResponse, AnnualReturnAssessmentYear
 } from "@/lib/api/annual-returns";
-import { listDocuments } from "@/lib/api/documents";
+import { listDocuments, uploadDocument } from "@/lib/api/documents";
 import { ContentCard, StatCard, StatusBadge, LoadingState, Table, Th, Td } from "@/components/SharedUI";
 
 interface AnnualReturnServicePanelProps {
@@ -35,6 +36,7 @@ export default function AnnualReturnServicePanel({
   const [verifiedYears, setVerifiedYears] = useState<string[]>([]);
   const [savingRjsc, setSavingRjsc] = useState(false);
   const [rjscMessage, setRjscMessage] = useState("");
+  const [uploadingRjscDoc, setUploadingRjscDoc] = useState(false);
 
   const loadAssessment = useCallback(async () => {
     if (!clientId) return;
@@ -42,8 +44,9 @@ export default function AnnualReturnServicePanel({
       setLoading(true);
       const res = await getAnnualReturnAssessment(clientId);
       setData(res);
-      const docs = await listDocuments({ client_id: clientId, status: "VERIFIED" }).catch(() => []);
-      setVerifiedDocs(docs.filter((d: any) => ["application/pdf", "image/png", "image/jpeg"].includes(d.mime_type)));
+      const docs = await listDocuments({ client_id: clientId }).catch(() => []);
+      const verified = docs.filter((d: any) => d.status === "VERIFIED" && ["application/pdf", "image/png", "image/jpeg"].includes(d.mime_type));
+      setVerifiedDocs(verified);
     } catch (err) {
       console.error("Failed to load annual return assessment", err);
     } finally {
@@ -131,7 +134,7 @@ export default function AnnualReturnServicePanel({
                 Statutory Service
               </span>
               <h2 className="text-lg font-black text-[#181818]">
-                Annual Return Lifecycle Assessment (Schedule X & Form XII)
+                Annual Return Lifecycle Assessment (Schedule X, Accounts & Form 23B)
               </h2>
             </div>
             <p className="text-xs text-[#447a5d] font-semibold mt-1">
@@ -148,12 +151,41 @@ export default function AnnualReturnServicePanel({
       </div>
 
       {/* One-time reviewed official RJSC Online Certified Copy evidence */}
-      <ContentCard className="p-5">
-        <h3 className="font-bold text-[#181818] mb-2">RJSC Online Record — One-time Schedule X Verification</h3>
+      <ContentCard className="p-5 border-l-4 border-l-[#315F55] bg-[#FFF8E8]/40">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
+          <h3 className="font-bold text-[#181818]">RJSC Online Record — One-time Schedule X Verification</h3>
+          <label className="inline-flex items-center gap-1.5 rounded-lg border border-[#315F55] bg-white px-3 py-1 text-xs font-bold text-[#315F55] hover:bg-[#E5F4EC] transition cursor-pointer">
+            <Upload size={13} />
+            {uploadingRjscDoc ? "Uploading..." : "Upload RJSC Screenshot / PDF"}
+            <input
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg"
+              disabled={uploadingRjscDoc}
+              className="hidden"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                setUploadingRjscDoc(true);
+                setRjscMessage("");
+                try {
+                  const uploaded = await uploadDocument(f, "SCHEDULE_X", clientId, currentWorkId, undefined, "RJSC online portal screenshot / certified copy list");
+                  setRjscMessage(`Uploaded "${f.name}" as RECEIVED. Review in Documents before marking verified.`);
+                  await loadAssessment();
+                  if (uploaded?.id) {
+                    setScheduleDocumentId(uploaded.id);
+                  }
+                } catch (err: any) {
+                  setRjscMessage(err.message || "Failed to upload document");
+                } finally {
+                  setUploadingRjscDoc(false);
+                  e.target.value = "";
+                }
+              }}
+            />
+          </label>
+        </div>
         <p className="text-xs text-[#6c7671] mb-3">
-          Upload the official Certified Copy List screenshot/PDF under Documents and have it reviewed.
-          Select only the financial years actually evidenced by Schedule X. The listed document date is
-          not automatically the filing date or AGM date. Form XII is tracked separately.
+          Upload the official Certified Copy List screenshot/PDF directly here or under Documents. Uploads start in <strong>RECEIVED</strong> status and require review before verification.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
           <div>
@@ -186,23 +218,23 @@ export default function AnnualReturnServicePanel({
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" disabled={savingRjsc || !verifiedYears.length}
             onClick={saveRjscVerification}
-            className="rounded-lg bg-[#447a5d] px-4 py-2 text-xs font-bold text-white disabled:opacity-50">
+            className="rounded-lg bg-[#315F55] px-4 py-2 text-xs font-bold text-white disabled:opacity-50 hover:bg-[#274c44] transition">
             {savingRjsc ? "Saving verification..." : "Save RJSC Verified Years"}
           </button>
           <span className="text-xs text-[#6c7671]">
-            {verifiedDocs.length ? "Only reviewed documents appear above." : "No reviewed evidence yet. Upload and verify it in Documents first."}
+            {verifiedDocs.length ? "Only reviewed documents appear above." : "No reviewed evidence yet. Upload and review it first."}
           </span>
         </div>
-        {rjscMessage && <p role="status" className="mt-2 text-xs font-semibold">{rjscMessage}</p>}
+        {rjscMessage && <p role="status" className="mt-2 text-xs font-semibold text-[#315F55]">{rjscMessage}</p>}
       </ContentCard>
 
       {/* Summary Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <StatCard title="Years Assessed" value={data.total_years_assessed} />
-        <StatCard title="Filed & Closed" value={data.filed_count} icon={<CheckCircle2 size={16} className="text-emerald-700" />} />
-        <StatCard title="Pending Filing" value={data.pending_count} icon={<Clock size={16} className="text-blue-700" />} />
-        <StatCard title="Overdue (Sec 36)" value={data.overdue_count} icon={<AlertTriangle size={16} className="text-amber-700" />} />
-        <StatCard title="Evidence Pending" value={data.uncertain_count} icon={<ShieldAlert size={16} className="text-rose-700" />} />
+        <StatCard title="Years Assessed" value={data.total_years_assessed} color="sage" />
+        <StatCard title="Filed & Closed" value={data.filed_count} icon={<CheckCircle2 size={16} className="text-[#315F55]" />} color="sage" />
+        <StatCard title="Pending Filing" value={data.pending_count} icon={<Clock size={16} className="text-[#2c747d]" />} color="aqua" />
+        <StatCard title="Overdue (Sec 36)" value={data.overdue_count} icon={<AlertTriangle size={16} className="text-[#715923]" />} color="yellow" />
+        <StatCard title="Evidence Pending" value={data.uncertain_count} icon={<ShieldAlert size={16} className="text-[#a03c2a]" />} color="coral" />
       </div>
 
       {/* Assessment Table */}

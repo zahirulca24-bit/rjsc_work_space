@@ -77,10 +77,11 @@ def populate_work_checklist(db: Session, work: Work, rule_snapshot: Optional[dic
         s_id = (work.service_id or "").lower()
         if "annual" in s_id or "return" in s_id and "test" not in s_id:
             items_to_create = [
-                {"item_code": "DOC_SCHED_X", "item_text": "Schedule X (Annual Return of Company having Share Capital)", "source_reference": "Companies Act 1994, Sec 36", "sort_order": 1},
-                {"item_code": "DOC_BALANCE_SHEET", "item_text": "Audited Balance Sheet & Profit and Loss Account", "source_reference": "Companies Act 1994, Sec 185", "sort_order": 2},
-                {"item_code": "DOC_FORM_23B", "item_text": "Form 23B (Consent of Auditor)", "source_reference": "Companies Act 1994, Sec 210", "sort_order": 3},
-                {"item_code": "DOC_AGM_NOTICE", "item_text": "Notice & Minutes of Annual General Meeting (AGM)", "source_reference": "Companies Act 1994, Sec 81", "sort_order": 4},
+                {"item_code": "DOC_SCHED_X", "item_text": "Schedule X (Annual Return of Company having Share Capital)", "source_reference": "Companies Act 1994, Sec 36(1) (21 days after AGM)", "sort_order": 1},
+                {"item_code": "DOC_BALANCE_SHEET", "item_text": "Audited Balance Sheet", "source_reference": "Companies Act 1994, Sec 185 & 190 (Laid before AGM)", "sort_order": 2},
+                {"item_code": "DOC_PROFIT_LOSS", "item_text": "Profit & Loss Account / Income Statement", "source_reference": "Companies Act 1994, Sec 185 & 190 (Laid before AGM)", "sort_order": 3},
+                {"item_code": "DOC_FORM_23B", "item_text": "Form 23B (Consent of Auditor to Act)", "source_reference": "Companies Act 1994, Sec 210(2) (30 days from appointment)", "sort_order": 4},
+                {"item_code": "DOC_AGM_NOTICE", "item_text": "Notice & Minutes of Annual General Meeting (AGM)", "source_reference": "Companies Act 1994, Sec 81", "sort_order": 5},
             ]
         elif "xii" in s_id and "test" not in s_id:
             items_to_create = [
