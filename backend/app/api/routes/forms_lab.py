@@ -48,6 +48,7 @@ class FormGenerateRequest(BaseModel):
     instrument_type: Optional[str] = None
     instrument_date: Optional[str] = None
     property_description: Optional[str] = None
+    original_instrument_date: Optional[str] = None
     modification_date: Optional[str] = None
     modification_details: Optional[str] = None
     satisfaction_date: Optional[str] = None
