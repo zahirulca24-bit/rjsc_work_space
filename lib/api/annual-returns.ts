@@ -65,3 +65,27 @@ export async function createAnnualReturnWork(
   }
   return res.json();
 }
+
+export interface RjscOnlineRecordVerificationPayload {
+  schedule_x_document_id: string;
+  schedule_x_document_date: string;
+  verified_financial_years: string[];
+  form_xii_document_id?: string;
+  form_xii_document_date?: string;
+}
+
+export async function verifyRjscOnlineRecord(
+  clientId: string,
+  payload: RjscOnlineRecordVerificationPayload
+): Promise<any> {
+  const res = await fetchApi(`/api/annual-returns/verify-rjsc-online-record/${clientId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(typeof error.detail === "string" ? error.detail : "Official RJSC record verification failed");
+  }
+  return res.json();
+}
