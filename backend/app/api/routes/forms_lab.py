@@ -264,6 +264,11 @@ def generate_work_form_pdf(
             if not options.get("instrument_date") and charge.instrument_date: options["instrument_date"] = charge.instrument_date.isoformat()
             if not options.get("property_description"): options["property_description"] = charge.property_description
             if not options.get("modification_details"): options["modification_details"] = charge.modification_details
+            if norm_code == "FORM_XIX":
+                if not options.get("original_instrument_date") and charge.creation_date:
+                    options["original_instrument_date"] = charge.creation_date.isoformat()
+                if not options.get("modification_date") and charge.modification_date:
+                    options["modification_date"] = charge.modification_date.isoformat()
             if not options.get("satisfaction_date") and charge.satisfaction_date: options["satisfaction_date"] = charge.satisfaction_date.isoformat()
 
     # Auto-fill transfer fields if not provided in options
