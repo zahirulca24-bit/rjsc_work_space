@@ -31,7 +31,7 @@ def get_financial_years_range(incorp_date: Optional[date]) -> List[str]:
     """
     today = date.today()
     current_fy_end = today.year if today.month < 7 else today.year + 1
-    start_year = incorp_date.year if (incorp_date and incorp_date.year >= 1990) else (current_fy_end - 5)
+    start_year = (incorp_date.year - (1 if incorp_date.month < 7 else 0)) if (incorp_date and incorp_date.year >= 1990) else (current_fy_end - 5)
     
     # Cap range to a maximum of 25 years
     if current_fy_end - start_year > 25:
