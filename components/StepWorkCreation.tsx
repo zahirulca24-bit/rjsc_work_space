@@ -42,6 +42,7 @@ export function StepWorkCreation({ onSuccess, onCancel, initialClientId }: StepW
 
   // Work Scope & Options
   const [numYearsFiling, setNumYearsFiling] = useState<number>(1);
+  const [filingPeriod, setFilingPeriod] = useState<string>("");
   const [accountAccess, setAccountAccess] = useState<AccountAccessStatus>("UNKNOWN");
   const [portalRecoveryFee, setPortalRecoveryFee] = useState<number>(0);
   const [securedAmount, setSecuredAmount] = useState<number>(0);
@@ -131,12 +132,17 @@ export function StepWorkCreation({ onSuccess, onCancel, initialClientId }: StepW
 
   // Handle Work Submission
   const handleSubmit = async () => {
+    if (serviceId === "annual-return" && !/^\d{4}-\d{4}$/.test(filingPeriod.trim())) {
+      setCreateError("Select an exact filing period (YYYY-YYYY) before creating an Annual Return work.");
+      return;
+    }
     setIsCreating(true);
     setCreateError("");
     try {
       const payload = {
         client_id: clientId,
         service_id: serviceId,
+        period_or_year: serviceId === "annual-return" ? filingPeriod.trim() : undefined,
         entity_type: currentEntity,
         status: "Pending Check",
         professional_fee: profFee,
@@ -464,6 +470,14 @@ export function StepWorkCreation({ onSuccess, onCancel, initialClientId }: StepW
               <label className="block text-xs font-bold text-[#44765b] uppercase tracking-wider mb-2">
                 Number of Filing Years in this Work
               </label>
+              <input
+                type="text"
+                value={filingPeriod}
+                onChange={e => setFilingPeriod(e.target.value)}
+                placeholder="Exact FY, e.g. 2025-2026"
+                aria-label="Exact annual return financial year"
+                className="w-full px-4 py-2.5 text-sm border border-[#d9e3df] rounded-xl mb-3"
+              />
               <input
                 type="number"
                 min={1}
