@@ -22,6 +22,8 @@ class MortgageChargeProposalRequest(BaseModel):
     secured_amount: float
     instrument_type: Optional[str] = "Deed of Mortgage / Hypothecation"
     instrument_date: Optional[date] = None
+    original_instrument_date: Optional[date] = None
+    modification_date: Optional[date] = None
     registration_date: Optional[date] = None
     filing_reference: Optional[str] = None
     property_description: Optional[str] = None
@@ -96,6 +98,8 @@ def get_work_mortgage_charge(
             "secured_amount": float(charge_rec.secured_amount),
             "instrument_type": charge_rec.instrument_type,
             "instrument_date": charge_rec.instrument_date.isoformat() if charge_rec.instrument_date else None,
+            "creation_date": charge_rec.creation_date.isoformat() if charge_rec.creation_date else None,
+            "modification_date": charge_rec.modification_date.isoformat() if charge_rec.modification_date else None,
             "registration_date": charge_rec.registration_date.isoformat() if charge_rec.registration_date else None,
             "filing_reference": charge_rec.filing_reference,
             "property_description": charge_rec.property_description,
@@ -173,8 +177,19 @@ def save_mortgage_charge_proposal(
     charge_rec.lender = payload.lender
     charge_rec.secured_amount = payload.secured_amount
     charge_rec.instrument_type = payload.instrument_type
-    charge_rec.instrument_date = payload.instrument_date
-    charge_rec.creation_date = payload.instrument_date
+    if payload.charge_type == "MODIFICATION":
+        # Countdown applies to the modification instrument, not the original deed.
+        mod_date = payload.modification_date or payload.instrument_date
+        if not mod_date:
+            raise HTTPException(status_code=400, detail="Actual modification instrument date is required")
+        charge_rec.instrument_date = mod_date
+        charge_rec.modification_date = mod_date
+        charge_rec.creation_date = payload.original_instrument_date or charge_rec.creation_date
+    else:
+        charge_rec.instrument_date = payload.instrument_date
+        if payload.charge_type == "CREATION":
+            charge_rec.creation_date = payload.instrument_date
+            charge_rec.modification_date = None
     charge_rec.registration_date = payload.registration_date
     charge_rec.filing_reference = payload.filing_reference
     charge_rec.property_description = payload.property_description
