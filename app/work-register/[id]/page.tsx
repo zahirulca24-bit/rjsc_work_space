@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -308,16 +308,16 @@ export default function WorkDetailPage() {
   const reviewStatus = work.review_status || "DRAFT";
   const userRole = user?.role || "JUNIOR";
 
-  const serviceCategory = useMemo(() => {
-    if (!work?.service_id) return null;
-    const sid = work.service_id.toLowerCase();
-    if (sid.includes("annual-return")) return "annual-return";
-    if (sid.includes("share-transfer")) return "share-transfer";
-    if (sid.includes("mortgage") || sid.includes("charge")) return "mortgage-charge";
-    return null;
-  }, [work?.service_id]);
+  // Derived values are inexpensive; keeping them hook-free is essential here
+  // because loading and missing-work states return earlier in this component.
+  const serviceId = String(work.service_id || "").toLowerCase();
+  const serviceCategory =
+    serviceId.includes("annual-return") ? "annual-return" :
+    serviceId.includes("share-transfer") ? "share-transfer" :
+    serviceId.includes("mortgage") || serviceId.includes("charge") ? "mortgage-charge" :
+    null;
 
-  const serviceTabConfig = useMemo(() => {
+  const serviceTabConfig = (() => {
     if (serviceCategory === "annual-return") {
       return {
         label: "Annual Return Assessment",
@@ -340,7 +340,7 @@ export default function WorkDetailPage() {
       };
     }
     return null;
-  }, [serviceCategory]);
+  })();
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-16">
