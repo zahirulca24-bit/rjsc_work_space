@@ -14,8 +14,8 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.colors import black, HexColor, white
 from reportlab.lib.pagesizes import letter, legal, landscape
 
-DEFAULT_TEMPLATE_DIR = r"E:\RJSC\rjsc FROM"
-DEFAULT_STORAGE_DIR = r"E:\RJSC\rjsc_work_space\storage\generated_forms"
+DEFAULT_TEMPLATE_DIR = os.getenv("RJSC_TEMPLATE_DIR", r"E:\RJSC\rjsc FROM")
+DEFAULT_STORAGE_DIR = os.getenv("RJSC_STORAGE_DIR", r"E:\RJSC\rjsc_work_space\storage\generated_forms")
 
 def _format_date(date_str: str | None) -> str:
     if not date_str:
