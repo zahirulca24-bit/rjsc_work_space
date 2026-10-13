@@ -169,7 +169,7 @@ def generate_form_xii(
     writer.add_page(base_page)
 
     # 2. If > 6 directors, generate Continuation Sheet
-    if len(directors) > 6:
+    for page_start in range(6, len(directors), 11):
         packet_cont = io.BytesIO()
         can_cont = canvas.Canvas(packet_cont, pagesize=(w, h))
         can_cont.setFillColor(black)
@@ -194,7 +194,7 @@ def generate_form_xii(
         can_cont.drawString(880, 505, "Changes")
 
         y_c = 470
-        for d in directors[6:]:
+        for d in directors[page_start:page_start + 11]:
             can_cont.setFont("Helvetica", 8)
             name = d.get("full_name") or d.get("name") or "—"
             desig = d.get("designation") or "Director"
@@ -212,8 +212,6 @@ def generate_form_xii(
             can_cont.drawString(780, y_c, _format_date(d.get("appointment_date"))[:14])
             can_cont.drawString(880, y_c, (d.get("changes") or "—")[:18])
             y_c -= row_height
-            if y_c < 100:
-                break
 
         can_cont.setFont("Helvetica-Bold", 9)
         can_cont.drawString(750, 80, f"{first_dir} (MD) — Signed")
@@ -380,7 +378,7 @@ def generate_schedule_x(
     writer.add_page(page2)
 
     # --- Page 3 (Optional): Member Register Continuation Sheet ---
-    if len(shareholders) > 0:
+    for member_start in range(0, len(shareholders), 35):
         packet_sh = io.BytesIO()
         can_sh = canvas.Canvas(packet_sh, pagesize=letter)
         can_sh.setFillColor(black)
@@ -402,7 +400,7 @@ def generate_schedule_x(
         can_sh.drawString(490, 702, "% Holding")
 
         y_sh = 675
-        for idx, s in enumerate(shareholders):
+        for idx, s in enumerate(shareholders[member_start:member_start + 35], start=member_start):
             can_sh.setFont("Helvetica", 8)
             can_sh.drawString(55, y_sh, str(idx + 1))
             can_sh.drawString(80, y_sh, (s.get("shareholder_name") or "—")[:35])
@@ -410,8 +408,6 @@ def generate_schedule_x(
             can_sh.drawString(380, y_sh, f"Tk. {s.get('total_value', 0):,}")
             can_sh.drawString(490, y_sh, f"{s.get('ownership_percentage', 0)}%")
             y_sh -= 18
-            if y_sh < 60:
-                break
 
         can_sh.save()
         packet_sh.seek(0)
