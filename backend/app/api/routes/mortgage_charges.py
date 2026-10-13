@@ -28,7 +28,7 @@ class MortgageChargeProposalRequest(BaseModel):
     modification_details: Optional[str] = None
     satisfaction_date: Optional[date] = None
     satisfaction_noc_ref: Optional[str] = None
-    statutory_form_code: Optional[str] = "FORM_XVIII"
+    statutory_form_code: Optional[str] = None
     notes: Optional[str] = None
 
 @router.get("/work/{work_id}")
