@@ -7,6 +7,8 @@ export interface MortgageChargeRecord {
   secured_amount: number;
   instrument_type: string | null;
   instrument_date: string | null;
+  creation_date: string | null;
+  modification_date: string | null;
   registration_date: string | null;
   filing_reference: string | null;
   property_description: string | null;
@@ -48,6 +50,8 @@ export interface MortgageChargeProposalPayload {
   secured_amount: number;
   instrument_type?: string;
   instrument_date?: string;
+  original_instrument_date?: string;
+  modification_date?: string;
   registration_date?: string;
   filing_reference?: string;
   property_description?: string;
