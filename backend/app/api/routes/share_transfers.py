@@ -28,7 +28,7 @@ class ShareTransferProposalRequest(BaseModel):
     transferee_name: str
     transferee_address: Optional[str] = None
     share_class: Optional[str] = "Ordinary Shares"
-    share_count: float
+    share_count: int
     nominal_value: Optional[float] = 100.0
     paid_up_per_share: Optional[float] = 100.0
     consideration_amount: float
