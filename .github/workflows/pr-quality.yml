@@ -29,7 +29,14 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - name: Install backend dependencies
         run: python -m pip install -r requirements.txt
+      - name: Create synthetic CI-only PDF templates
+        env:
+          RJSC_TEMPLATE_DIR: ${{ runner.temp }}/rjsc-ci-templates
+        run: python tests/create_ci_templates.py
       - name: Run full backend pytest
+        env:
+          RJSC_TEMPLATE_DIR: ${{ runner.temp }}/rjsc-ci-templates
+          RJSC_STORAGE_DIR: ${{ runner.temp }}/rjsc-generated
         run: python -m pytest tests -v
 
   frontend-tests-and-build:
