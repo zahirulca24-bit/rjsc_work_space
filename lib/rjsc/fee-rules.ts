@@ -364,6 +364,54 @@ export const feeRules: FeeRule[] = [
     vatApplicable: false,
     notes: 'Receiver Appointment',
     sourceReference: 'RJSC_FEE_GAZETTE_2023'
+  },
+  // 8. Share Transfer / Form 117
+  {
+    id: 'FEE_SHARE_TRANSFER',
+    serviceId: 'share-transfer',
+    entityType: 'ALL',
+    effectiveFrom: '2023-01-01',
+    effectiveTo: null,
+    calculationType: 'PER_DOCUMENT',
+    perDocumentFee: 200,
+    vatApplicable: false,
+    notes: 'Share Transfer Form 117 filing',
+    sourceReference: 'RJSC_RETURN_FEE_SCHEDULE'
+  },
+  // 9. Mortgage / Charge (mortgage-charge alias)
+  {
+    id: 'FEE_MORTGAGE_ALIAS_PVT',
+    serviceId: 'mortgage-charge',
+    entityType: EntityType.PRIVATE_COMPANY,
+    effectiveFrom: '2023-01-01',
+    effectiveTo: null,
+    calculationType: 'MORTGAGE_SLAB',
+    vatApplicable: false,
+    notes: 'Mortgage Company',
+    sourceReference: 'RJSC_FEE_GAZETTE_2023',
+    mortgageRules: {
+      firstSlabBase: 300,
+      secondSlabPerUnit: 200,
+      thirdSlabPerUnit: 100,
+      unitSize: 500000
+    }
+  },
+  {
+    id: 'FEE_MORTGAGE_ALIAS_PUB',
+    serviceId: 'mortgage-charge',
+    entityType: EntityType.PUBLIC_COMPANY,
+    effectiveFrom: '2023-01-01',
+    effectiveTo: null,
+    calculationType: 'MORTGAGE_SLAB',
+    vatApplicable: false,
+    notes: 'Mortgage Public Company',
+    sourceReference: 'RJSC_FEE_GAZETTE_2023',
+    mortgageRules: {
+      firstSlabBase: 300,
+      secondSlabPerUnit: 200,
+      thirdSlabPerUnit: 100,
+      unitSize: 500000
+    }
   }
 ];
 

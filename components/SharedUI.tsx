@@ -68,7 +68,7 @@ export function StatCard({
 }: { 
   title: string, 
   value: React.ReactNode, 
-  icon: any, 
+  icon?: any, 
   trend?: React.ReactNode,
   color?: "sage" | "coral" | "aqua" | "yellow" 
 }) {
@@ -84,9 +84,11 @@ export function StatCard({
     <div className={`rounded-[20px] border ${c.border} ${c.bg} p-4 flex flex-col justify-between`}>
       <div className="flex items-start justify-between gap-3">
         <div className="text-sm font-bold text-[#44765b] uppercase tracking-wider">{title}</div>
-        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${c.iconBg} ${c.iconText}`}>
-          <Icon size={20} />
-        </div>
+        {Icon && (
+          <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${c.iconBg} ${c.iconText}`}>
+            {React.isValidElement(Icon) ? Icon : <Icon size={20} />}
+          </div>
+        )}
       </div>
       <div className="mt-4">
         <div className="text-3xl font-black tracking-tight text-[#181818]">{value}</div>
@@ -129,10 +131,11 @@ export function EmptyState({ title, message, icon: Icon }: { title: string, mess
   );
 }
 
-export function LoadingState() {
+export function LoadingState({ message }: { message?: string } = {}) {
   return (
-    <div className="flex items-center justify-center py-16">
+    <div className="flex flex-col items-center justify-center py-16 gap-3">
       <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dff1e7] border-t-[#447a5d]" />
+      {message && <p className="text-xs font-bold text-[#6c7671]">{message}</p>}
     </div>
   );
 }

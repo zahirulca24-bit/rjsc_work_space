@@ -25,6 +25,28 @@ Initial coding commit: `edeee21`. This documentation addition creates subsequent
 ## Scope audit
 Confirmed code additions: Work Register/detail and workflow, working-paper preparation, Forms Lab engine/API/UI, submissions lifecycle/API/UI and supporting models/tests. Billing, full job-cost accounting, policy-driven fees, credential vault and final compliance review remain outside confirmed PR #22 completion.
 
+### Batch 2 — Core RJSC Services (Branch: `feature/core-rjsc-services-batch2`)
+Development branch branched safely off `feature/za-office-workflow-forms-batch1` preserving PR #22 unmerged:
+1. **Annual Return Service**:
+   - Assessment router (`/api/annual-returns/assessment/{client_id}`) calculating actual AGM, audit report, DVC code, and Sec 36 21-day statutory deadlines.
+   - Bundled work creation (`/api/annual-returns/create-work/{client_id}`) with multi-year statutory checklist (`AR-CHK-01` to `08`) and Working Paper linkage.
+   - Dedicated UI (`AnnualReturnServicePanel.tsx`) mounted in Work Register detail and Client Profile tabs.
+2. **Share Transfer Service (Form 117)**:
+   - Proposal validation (`/api/share-transfers/work/{work_id}`) with pre/post mathematical share balance parity reconciliation.
+   - Live Form 117 PDF overlay generation.
+   - Authorized register mutation (`/api/share-transfers/work/{work_id}/apply`) updating `shareholders` table with immutable audit log.
+   - Dedicated UI (`ShareTransferServicePanel.tsx`) mounted in Work Register detail.
+3. **Mortgage & Charge Service (Sec 159 / 160 / 169)**:
+   - Creation (Form XVIII), Modification (Form XIX), and Satisfaction (Form XXVIII) workflows.
+   - Section 159 21-day deadline countdown with Section 171 High Court condonation legal warnings.
+   - Form XVIII, XIX, and XXVIII overlays promoted to `LIVE_AUTOFILL_READY` with multi-page coordinate mapping.
+   - Dedicated UI (`MortgageChargeServicePanel.tsx`) mounted in Work Register detail.
+4. **Verification**:
+   - 166 passing backend pytest tests (100%).
+   - 100 passing frontend tsx tests (100%).
+   - 0 TypeScript type errors (`tsc --noEmit`).
+   - Clean Next.js production build (`next build`).
+
 ## Verification boundary
 GitHub branch metadata, file existence and inspected code were checked independently. Local machine test results, database integrity, actual PDF visuals, privacy review and on-site user workflows **were not** independently executed. Antigravity's claim of no migration risk or secrets in Git is **not an independent security/migration audit**; run dependency, secret, migration and access-control reviews before merging.
 

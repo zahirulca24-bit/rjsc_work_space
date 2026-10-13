@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from .deps import get_current_user
-from .routes import status, health, clients, works, documents, storage, invoices, transactions, analytics, auth, users, tasks, audit, ai_documents, pilot_feedback, rjsc_snapshots, client_intake, working_papers, forms_lab, submissions
+from .routes import status, health, clients, works, documents, storage, invoices, transactions, analytics, auth, users, tasks, audit, ai_documents, pilot_feedback, rjsc_snapshots, client_intake, working_papers, forms_lab, submissions, annual_returns, share_transfers, mortgage_charges
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -12,6 +12,9 @@ protected = [Depends(get_current_user)]
 api_router.include_router(status.router, prefix="/status", tags=["status"], dependencies=protected)
 api_router.include_router(clients.router, prefix="/clients", tags=["clients"], dependencies=protected)
 api_router.include_router(clients.HISTORY_ROUTER, prefix="/clients", tags=["clients-history"], dependencies=protected)
+api_router.include_router(annual_returns.router, dependencies=protected)
+api_router.include_router(share_transfers.router, dependencies=protected)
+api_router.include_router(mortgage_charges.router, dependencies=protected)
 api_router.include_router(works.router, prefix="/works", tags=["works"], dependencies=protected)
 api_router.include_router(working_papers.router, prefix="/working-papers", tags=["working-papers"], dependencies=protected)
 api_router.include_router(forms_lab.router, dependencies=protected)

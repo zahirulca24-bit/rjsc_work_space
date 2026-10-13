@@ -62,12 +62,16 @@ def test_work_checklist_autoseed_and_matching_client_docs(client, db_session):
     chk_res = client.get(f"/api/works/{work_id}/checklist")
     assert chk_res.status_code == 200
     items = chk_res.json()
-    assert len(items) == 4
+    assert len(items) == 5
     
-    # Check item codes
+    # Check item codes: Schedule X, Balance Sheet, Profit & Loss, Form 23B, AGM Notice
     item_codes = [i["item_code"] for i in items]
     assert "DOC_SCHED_X" in item_codes
     assert "DOC_BALANCE_SHEET" in item_codes
+    assert "DOC_PROFIT_LOSS" in item_codes
+    assert "DOC_FORM_23B" in item_codes
+    assert "DOC_AGM_NOTICE" in item_codes
+    assert "DOC_FORM_XII" not in item_codes
 
 def test_add_update_delete_custom_checklist_item(client, db_session):
     _auth_user(RoleEnum.ADMIN)

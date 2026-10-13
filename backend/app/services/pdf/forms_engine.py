@@ -727,6 +727,313 @@ def generate_form_vi(
 
     return len(writer.pages), missing
 
+def generate_form_xviii(
+    template_path: str,
+    output_path: str,
+    snapshot: Dict[str, Any],
+    options: Dict[str, Any]
+) -> Tuple[int, List[str]]:
+    """
+    Overlays Form XVIII (Portrait: 612 x 792 pt, 1 page).
+    Particulars of Mortgages or Charges created by Company (Section 159 & 391).
+    """
+    company = snapshot.get("company_data") or {}
+    directors = snapshot.get("directors_data") or []
+    overrides = options.get("overrides") or {}
+
+    company_name = overrides.get("company_name") or company.get("legal_name") or "COMPANY NAME PENDING"
+    reg_no = overrides.get("registration_no") or company.get("registration_no") or "—"
+    reg_office = overrides.get("registered_office") or company.get("registered_office") or "ADDRESS PENDING"
+    filing_by = overrides.get("filing_by") or options.get("filing_by") or "Zahir & Associate (Chartered Accountants)"
+
+    # Mortgage/Charge parameters
+    lender = overrides.get("lender") or options.get("lender") or "Bank / Financial Institution"
+    secured_amount = overrides.get("secured_amount") or options.get("secured_amount") or 0.0
+    instrument_type = overrides.get("instrument_type") or options.get("instrument_type") or "Deed of Mortgage / Hypothecation"
+    instrument_date = overrides.get("instrument_date") or options.get("instrument_date") or datetime.date.today().isoformat()
+    property_desc = overrides.get("property_description") or options.get("property_description") or "Movable and immovable assets as per schedule"
+
+    missing = []
+    if not company.get("legal_name"):
+        missing.append("Company legal name missing")
+    if not overrides.get("lender") and not options.get("lender"):
+        missing.append("Lender name pending")
+
+    reader = pypdf.PdfReader(template_path)
+    page = reader.pages[0]
+    w, h = float(page.mediabox.width), float(page.mediabox.height)
+
+    packet = io.BytesIO()
+    can = canvas.Canvas(packet, pagesize=(w, h))
+
+    # Mask browser header and footer
+    can.setFillColor(white)
+    can.rect(20, 760, 570, 30, fill=1, stroke=0)
+    can.rect(20, 10, 570, 30, fill=1, stroke=0)
+
+    # Header block
+    can.setFillColor(black)
+    can.setFont("Helvetica-Bold", 8)
+    can.drawString(160, 670, str(company_name)[:50])
+    can.setFont("Helvetica", 8)
+    can.drawString(160, 660, str(reg_office)[:65])
+    can.drawString(160, 651, str(reg_no)[:30])
+    can.drawString(160, 468, str(filing_by)[:45])
+
+    # Particulars Table (Row y=335)
+    can.setFont("Helvetica", 7)
+    # Col 1: Date & Instrument
+    can.drawString(35, 335, _format_date(instrument_date))
+    can.drawString(35, 325, str(instrument_type)[:18])
+    # Col 2: Amount Secured
+    try:
+        amt_float = float(secured_amount)
+        amt_str = f"BDT {amt_float:,.2f}"
+    except Exception:
+        amt_str = f"BDT {secured_amount}"
+    can.setFont("Helvetica-Bold", 7)
+    can.drawString(118, 335, amt_str[:15])
+
+    # Col 3: Short Particulars of property
+    can.setFont("Helvetica", 6.5)
+    prop_lines = [str(property_desc)[i:i+16] for i in range(0, min(len(str(property_desc)), 64), 16)]
+    y_p = 335
+    for pl in prop_lines:
+        can.drawString(178, y_p, pl)
+        y_p -= 9
+
+    # Col 4: Gist of terms or conditions
+    can.drawString(258, 335, "Standard charge terms")
+    can.drawString(258, 326, "as per sanction letter.")
+
+    # Col 5: Lender name and address
+    lender_lines = [str(lender)[i:i+26] for i in range(0, min(len(str(lender)), 78), 26)]
+    y_l = 335
+    for ll in lender_lines:
+        can.drawString(352, y_l, ll)
+        y_l -= 9
+
+    # Col 6: Commission/Discount
+    can.drawString(505, 335, "Nil")
+
+    # Signatory line
+    first_dir = directors[0].get("full_name") if directors else "Managing Director"
+    can.setFont("Helvetica-Bold", 8)
+    can.drawString(394, 284, f"For {company_name[:24]}")
+    can.drawString(394, 270, f"{first_dir} (Managing Director)"[:36])
+
+    can.save()
+    packet.seek(0)
+    page.merge_page(pypdf.PdfReader(packet).pages[0])
+
+    writer = pypdf.PdfWriter()
+    writer.add_page(page)
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "wb") as f:
+        writer.write(f)
+
+    return 1, missing
+
+def generate_form_xix(
+    template_path: str,
+    output_path: str,
+    snapshot: Dict[str, Any],
+    options: Dict[str, Any]
+) -> Tuple[int, List[str]]:
+    """
+    Overlays Form XIX (Portrait: 612 x 792 pt, 2 pages).
+    Particulars of Modification of Mortgage or Charge (Section 167(3) & 319).
+    """
+    company = snapshot.get("company_data") or {}
+    directors = snapshot.get("directors_data") or []
+    overrides = options.get("overrides") or {}
+
+    company_name = overrides.get("company_name") or company.get("legal_name") or "COMPANY NAME PENDING"
+    reg_no = overrides.get("registration_no") or company.get("registration_no") or "—"
+    reg_office = overrides.get("registered_office") or company.get("registered_office") or "ADDRESS PENDING"
+    filing_by = overrides.get("filing_by") or options.get("filing_by") or "Zahir & Associate (Chartered Accountants)"
+
+    lender = overrides.get("lender") or options.get("lender") or "Bank / Financial Institution"
+    secured_amount = overrides.get("secured_amount") or options.get("secured_amount") or 0.0
+    instrument_date = overrides.get("original_instrument_date") or options.get("original_instrument_date")
+    mod_date = overrides.get("modification_date") or options.get("modification_date")
+    mod_details = overrides.get("modification_details") or options.get("modification_details") or "Enhancement / Restructuring of credit facilities as per supplementary deed."
+    property_desc = overrides.get("property_description") or options.get("property_description") or "As per original registered charge"
+
+    missing = []
+    if not company.get("legal_name"):
+        missing.append("Company legal name missing")
+    if not instrument_date:
+        missing.append("Original mortgage instrument date missing; verify original deed")
+    if not mod_date:
+        missing.append("Modification/supplementary instrument date missing; verify deed")
+
+    reader = pypdf.PdfReader(template_path)
+    writer = pypdf.PdfWriter()
+
+    # Page 1
+    page1 = reader.pages[0]
+    w1, h1 = float(page1.mediabox.width), float(page1.mediabox.height)
+    packet1 = io.BytesIO()
+    can1 = canvas.Canvas(packet1, pagesize=(w1, h1))
+
+    # Mask browser header and footer
+    can1.setFillColor(white)
+    can1.rect(20, 760, 570, 30, fill=1, stroke=0)
+    can1.rect(20, 10, 570, 30, fill=1, stroke=0)
+
+    # Header
+    can1.setFillColor(black)
+    can1.setFont("Helvetica-Bold", 8)
+    can1.drawString(160, 644, str(company_name)[:50])
+    can1.setFont("Helvetica", 8)
+    can1.drawString(160, 614, str(reg_office)[:65])
+    can1.drawString(160, 599, str(reg_no)[:30])
+    can1.drawString(160, 475, str(filing_by)[:45])
+
+    # Table: Original vs Modification
+    can1.setFont("Helvetica", 7.5)
+    # Row 1: Date & Description
+    can1.drawString(275, 534, f"{_format_date(instrument_date)} (Original Deed)")
+    can1.drawString(430, 534, f"{_format_date(mod_date)} (Supplementary Deed)")
+
+    # Row 2: Amount Secured
+    try:
+        amt_str = f"BDT {float(secured_amount):,.2f}"
+    except Exception:
+        amt_str = f"BDT {secured_amount}"
+    can1.setFont("Helvetica-Bold", 7.5)
+    can1.drawString(275, 494, amt_str[:22])
+    can1.drawString(430, 494, amt_str[:22])
+
+    # Row 3: Property
+    can1.setFont("Helvetica", 7)
+    can1.drawString(275, 440, str(property_desc)[:25])
+    can1.drawString(430, 440, "As per original instrument")
+
+    # Row 4: Gist of terms or conditions
+    can1.drawString(275, 340, "Terms as per original sanction")
+    can1.drawString(430, 340, str(mod_details)[:32])
+
+    # Signatory line
+    first_dir = directors[0].get("full_name") if directors else "Managing Director"
+    can1.setFont("Helvetica-Bold", 8)
+    can1.drawString(310, 187, f"({first_dir}) Managing Director")
+    can1.drawString(310, 174, "Managing Director")
+
+    can1.save()
+    packet1.seek(0)
+    page1.merge_page(pypdf.PdfReader(packet1).pages[0])
+    writer.add_page(page1)
+
+    # Page 2
+    if len(reader.pages) > 1:
+        page2 = reader.pages[1]
+        w2, h2 = float(page2.mediabox.width), float(page2.mediabox.height)
+        packet2 = io.BytesIO()
+        can2 = canvas.Canvas(packet2, pagesize=(w2, h2))
+        can2.setFillColor(white)
+        can2.rect(20, 760, 570, 30, fill=1, stroke=0)
+        can2.rect(20, 10, 570, 30, fill=1, stroke=0)
+        can2.save()
+        packet2.seek(0)
+        page2.merge_page(pypdf.PdfReader(packet2).pages[0])
+        writer.add_page(page2)
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "wb") as f:
+        writer.write(f)
+
+    return len(writer.pages), missing
+
+def generate_form_xxviii(
+    template_path: str,
+    output_path: str,
+    snapshot: Dict[str, Any],
+    options: Dict[str, Any]
+) -> Tuple[int, List[str]]:
+    """
+    Overlays Form XXVIII (Portrait: 612 x 792 pt, 1 page).
+    Memorandum of Satisfaction of Mortgage / Charge (Section 172 & 391).
+    """
+    company = snapshot.get("company_data") or {}
+    directors = snapshot.get("directors_data") or []
+    overrides = options.get("overrides") or {}
+
+    company_name = overrides.get("company_name") or company.get("legal_name") or "COMPANY NAME PENDING"
+    reg_no = overrides.get("registration_no") or company.get("registration_no") or "—"
+    reg_office = overrides.get("registered_office") or company.get("registered_office") or "ADDRESS PENDING"
+
+    lender = overrides.get("lender") or options.get("lender") or "Bank / Financial Institution"
+    secured_amount = overrides.get("secured_amount") or options.get("secured_amount") or 0.0
+    satisfaction_date = overrides.get("satisfaction_date") or options.get("satisfaction_date") or datetime.date.today().isoformat()
+    day_str, month_str, year_str = _split_date_dmy(satisfaction_date)
+
+    missing = []
+    if not company.get("legal_name"):
+        missing.append("Company legal name missing")
+
+    reader = pypdf.PdfReader(template_path)
+    page = reader.pages[0]
+    w, h = float(page.mediabox.width), float(page.mediabox.height)
+
+    packet = io.BytesIO()
+    can = canvas.Canvas(packet, pagesize=(w, h))
+
+    # Mask browser headers
+    can.setFillColor(white)
+    can.rect(20, 760, 570, 30, fill=1, stroke=0)
+    can.rect(20, 10, 570, 30, fill=1, stroke=0)
+
+    # Header
+    can.setFillColor(black)
+    can.setFont("Helvetica-Bold", 8)
+    can.drawString(160, 620, str(company_name)[:50])
+    can.setFont("Helvetica", 8)
+    can.drawString(160, 608, str(reg_office)[:65])
+    can.drawString(160, 596, str(reg_no)[:30])
+
+    # Body sentence: The [Company Name] hereby give notice...
+    can.setFont("Helvetica-Bold", 8)
+    can.drawString(80, 558, str(company_name)[:45])
+
+    # Amount
+    try:
+        amt_str = f"{float(secured_amount):,.2f}"
+    except Exception:
+        amt_str = str(secured_amount)
+    can.drawString(100, 522, amt_str[:25])
+
+    # Date satisfied
+    can.setFont("Helvetica-Bold", 8)
+    can.drawString(160, 498, f"{day_str} day of {month_str}, {year_str}")
+
+    # Mortgagee table
+    can.setFont("Helvetica", 8)
+    can.drawString(40, 420, "1")
+    can.drawString(120, 420, str(lender)[:35])
+    can.drawString(380, 420, "Principal Branch / Registered Office")
+
+    # Signatory line
+    first_dir = directors[0].get("full_name") if directors else "Managing Director"
+    can.setFont("Helvetica-Bold", 8)
+    can.drawString(340, 258, f"{first_dir}")
+    can.drawString(340, 234, "Managing Director")
+
+    can.save()
+    packet.seek(0)
+    page.merge_page(pypdf.PdfReader(packet).pages[0])
+
+    writer = pypdf.PdfWriter()
+    writer.add_page(page)
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "wb") as f:
+        writer.write(f)
+
+    return 1, missing
+
 def generate_form_pdf(
     form_code: str,
     work_id: str,
@@ -737,6 +1044,7 @@ def generate_form_pdf(
 ) -> Dict[str, Any]:
     """
     Master generation dispatcher.
+    Resolves official templates in template_dir or template_dir/'New folder'.
     """
     options = options or {}
     form_code = form_code.upper().replace("-", "_")
@@ -746,20 +1054,28 @@ def generate_form_pdf(
         "SCHEDULE_X": ("RJSC_Schedule X.pdf", generate_schedule_x, "Schedule X: Annual Summary of Share Capital"),
         "FORM_117": ("FORM-117.pdf", generate_form_117, "Form 117: Instrument of Transfer of Shares"),
         "FORM_23B": ("___ RJSC ___ Form 23B.pdf", generate_form_23b, "Form 23B: Notice by Auditor"),
-        "FORM_VI": ("RJSC __ Form VI.pdf", generate_form_vi, "Form VI: Notice of Registered Office")
+        "FORM_VI": ("RJSC __ Form VI.pdf", generate_form_vi, "Form VI: Notice of Registered Office"),
+        "FORM_XVIII": ("___ RJSC ___ Form XVIII.pdf", generate_form_xviii, "Form XVIII: Particulars of Mortgages or Charges"),
+        "FORM_XIX": ("___ RJSC ___ Form XIX.pdf", generate_form_xix, "Form XIX: Modification of Mortgage or Charge"),
+        "FORM_XXVIII": ("___ RJSC ___ Form XXVIII.pdf", generate_form_xxviii, "Form XXVIII: Memorandum of Satisfaction of Charge")
     }
 
     if form_code not in template_mapping:
         raise ValueError(
             f"Form {form_code} does not have an active template overlay implementation yet. "
-            f"Format mapping pending for this template in Phase 05."
+            f"Format mapping pending for this template."
         )
 
     template_filename, gen_func, form_title = template_mapping[form_code]
     template_path = os.path.join(template_dir, template_filename)
 
     if not os.path.exists(template_path):
-        raise FileNotFoundError(f"Original template not found at {template_path}")
+        # Look in "New folder" subdirectory
+        sub_path = os.path.join(template_dir, "New folder", template_filename)
+        if os.path.exists(sub_path):
+            template_path = sub_path
+        else:
+            raise FileNotFoundError(f"Original template not found at {template_path} or {sub_path}")
 
     timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     version = options.get("version", 1)

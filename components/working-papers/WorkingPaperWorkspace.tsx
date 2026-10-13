@@ -13,7 +13,7 @@ import {
   refreshWorkingPaperFromMaster, applyWorkingPaperReviewAction
 } from "@/lib/api/working-papers";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { ContentCard, StatCard, StatusBadge, LoadingState, Table, Th, Td } from "@/components/SharedUI";
+import { ContentCard, StatusBadge, LoadingState, Table, Th, Td } from "@/components/SharedUI";
 import FormXiiWorkingDraft from "./FormXiiWorkingDraft";
 import ScheduleXWorkingDraft from "./ScheduleXWorkingDraft";
 import FormsLabWorkspace from "@/components/forms-lab/FormsLabWorkspace";
@@ -328,16 +328,9 @@ export default function WorkingPaperWorkspace({ workId, onSaved }: WorkingPaperW
 
       {/* TAB 1: Overview */}
       {activeTab === "overview" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard title="Company" value={company_data.legal_name} icon={Building2} color="sage" />
-            <StatCard title="Registration No." value={company_data.registration_no || "Missing"} icon={FileText} color="aqua" />
-            <StatCard title="Active Directors" value={directors_data.filter(d => d.is_current).length} icon={Users} color="yellow" />
-            <StatCard title="Filing Status" value={workingPaper.status} icon={CheckCircle2} color="coral" />
-          </div>
-
-          <ContentCard className="p-6">
-            <h3 className="text-sm font-black uppercase text-[#181818] tracking-wider mb-3">
+        <div className="space-y-4">
+          <ContentCard className="p-5">
+            <h3 className="text-sm font-black uppercase text-[#181818] tracking-wider mb-2">
               Work-Specific Snapshot Guarantee
             </h3>
             <p className="text-xs text-[#556e63] leading-relaxed">
@@ -371,7 +364,7 @@ export default function WorkingPaperWorkspace({ workId, onSaved }: WorkingPaperW
           </ContentCard>
 
           {/* Linked Supporting Documents */}
-          <ContentCard className="p-6">
+          <ContentCard className="p-5">
             <h3 className="text-sm font-black uppercase text-[#181818] tracking-wider mb-3">
               Linked Legal & Supporting Documents
             </h3>

@@ -9,11 +9,14 @@ from sqlalchemy import func
 
 from ...db.session import get_db
 from ..deps import get_current_user
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 from ...models.user import User, RoleEnum
 from ...models.work import Work
 from ...models.client import Client
 from ...models.working_paper import WorkingPaper
 from ...models.generated_form import GeneratedFormRecord
+from ...models.corporate_history import MortgageChargeHistory, ShareTransferHistory, AnnualReturnHistory
 from ...services.pdf.template_inventory import get_template_catalog, get_template_by_code
 from ...services.pdf.forms_engine import generate_form_pdf
 from .working_papers import build_working_paper_snapshot
@@ -39,6 +42,16 @@ class FormGenerateRequest(BaseModel):
     distinctive_to: Optional[int] = None
     transfer_no: Optional[str] = None
     board_approval_date: Optional[str] = None
+    # Mortgage / Charge parameters
+    lender: Optional[str] = None
+    secured_amount: Optional[float] = None
+    instrument_type: Optional[str] = None
+    instrument_date: Optional[str] = None
+    property_description: Optional[str] = None
+    original_instrument_date: Optional[str] = None
+    modification_date: Optional[str] = None
+    modification_details: Optional[str] = None
+    satisfaction_date: Optional[str] = None
 
 class FormReviewActionRequest(BaseModel):
     new_status: str  # DRAFT, REVIEWED, APPROVED_FOR_PORTAL_UPLOAD, ARCHIVED
@@ -144,7 +157,34 @@ def get_form_preflight(
                 warnings.append("Single shareholder recorded: Enter transferee details in filing parameters.")
         else:
             missing_fields.append("No recorded shareholders available as transferor candidate")
-        warnings.append("Form 117 requires execution date and Board Resolution meeting date before upload.")
+        st_rec = db.query(ShareTransferHistory).filter(ShareTransferHistory.work_id == work_id).first()
+        if st_rec:
+            verified_fields.append({"field": "transferor_name", "value": st_rec.transferor_name})
+            verified_fields.append({"field": "transferee_name", "value": st_rec.transferee_name})
+            verified_fields.append({"field": "share_count", "value": f"{float(st_rec.share_count):,.0f}"})
+            verified_fields.append({"field": "consideration", "value": f"৳ {float(st_rec.consideration_amount):,}"})
+            if st_rec.board_approval_date:
+                verified_fields.append({"field": "board_approval_date", "value": st_rec.board_approval_date.isoformat()})
+            else:
+                warnings.append("Board resolution approval date pending before final RJSC upload.")
+        else:
+            warnings.append("Form 117 requires execution date and Board Resolution meeting date before upload.")
+    elif norm_code in ["FORM_XVIII", "FORM_XIX", "FORM_XXVIII"]:
+        charge = db.query(MortgageChargeHistory).filter(MortgageChargeHistory.work_id == work_id).first()
+        if charge:
+            verified_fields.append({"field": "charge_type", "value": charge.charge_type})
+            verified_fields.append({"field": "lender", "value": charge.lender})
+            verified_fields.append({"field": "secured_amount", "value": f"৳ {float(charge.secured_amount):,}"})
+            if charge.instrument_date:
+                verified_fields.append({"field": "instrument_date", "value": charge.instrument_date.isoformat()})
+                if norm_code in ["FORM_XVIII", "FORM_XIX"] and not charge.registration_date:
+                    if date.today() > charge.instrument_date + timedelta(days=21):
+                        warnings.append("STATUTORY ALERT: Beyond 21 days from instrument date. High Court condonation of delay required under Section 171.")
+                    else:
+                        rem_days = (charge.instrument_date + timedelta(days=21) - date.today()).days
+                        verified_fields.append({"field": "statutory_deadline", "value": f"{rem_days} days remaining"})
+        else:
+            warnings.append(f"No active Mortgage/Charge record found for this work. Enter lender and amount in parameters.")
 
     return {
         "form_code": norm_code,
@@ -161,6 +201,19 @@ def get_form_preflight(
             "shareholders_count": len(shareholders)
         }
     }
+
+def _clean_json_dict(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {str(k): _clean_json_dict(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_clean_json_dict(v) for v in obj]
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, (date, datetime)):
+        return obj.isoformat()
+    elif isinstance(obj, uuid.UUID):
+        return str(obj)
+    return obj
 
 @router.post("/generate/{work_id}/{form_code}")
 def generate_work_form_pdf(
@@ -199,8 +252,39 @@ def generate_work_form_pdf(
     ).scalar() or 0
     next_version = current_max + 1
 
-    options = payload.dict()
+    options = payload.model_dump()
     options["version"] = next_version
+
+    # Auto-fill mortgage fields if not provided in options
+    if norm_code in ["FORM_XVIII", "FORM_XIX", "FORM_XXVIII"]:
+        charge = db.query(MortgageChargeHistory).filter(MortgageChargeHistory.work_id == work_id).first()
+        if charge:
+            if not options.get("lender"): options["lender"] = charge.lender
+            if not options.get("secured_amount"): options["secured_amount"] = float(charge.secured_amount)
+            if not options.get("instrument_type"): options["instrument_type"] = charge.instrument_type
+            if not options.get("instrument_date") and charge.instrument_date: options["instrument_date"] = charge.instrument_date.isoformat()
+            if not options.get("property_description"): options["property_description"] = charge.property_description
+            if not options.get("modification_details"): options["modification_details"] = charge.modification_details
+            if norm_code == "FORM_XIX":
+                if not options.get("original_instrument_date") and charge.creation_date:
+                    options["original_instrument_date"] = charge.creation_date.isoformat()
+                if not options.get("modification_date") and charge.modification_date:
+                    options["modification_date"] = charge.modification_date.isoformat()
+            if not options.get("satisfaction_date") and charge.satisfaction_date: options["satisfaction_date"] = charge.satisfaction_date.isoformat()
+
+    # Auto-fill transfer fields if not provided in options
+    if norm_code == "FORM_117":
+        st_rec = db.query(ShareTransferHistory).filter(ShareTransferHistory.work_id == work_id).first()
+        if st_rec:
+            if not options.get("transferor_name"): options["transferor_name"] = st_rec.transferor_name
+            if not options.get("transferor_address"): options["transferor_address"] = st_rec.transferor_address
+            if not options.get("transferee_name"): options["transferee_name"] = st_rec.transferee_name
+            if not options.get("transferee_address"): options["transferee_address"] = st_rec.transferee_address
+            if not options.get("share_count"): options["share_count"] = int(st_rec.share_count)
+            if not options.get("consideration_amount"): options["consideration_amount"] = float(st_rec.consideration_amount)
+            if not options.get("distinctive_from"): options["distinctive_from"] = st_rec.distinctive_from
+            if not options.get("distinctive_to"): options["distinctive_to"] = st_rec.distinctive_to
+            if not options.get("board_approval_date") and st_rec.board_approval_date: options["board_approval_date"] = st_rec.board_approval_date.isoformat()
 
     try:
         gen_result = generate_form_pdf(
@@ -227,7 +311,7 @@ def generate_work_form_pdf(
         status="DRAFT",
         generated_by=current_user.email or current_user.name or "STAFF",
         missing_fields=gen_result["missing_fields"],
-        form_parameters=options
+        form_parameters=_clean_json_dict(options)
     )
     db.add(record)
     db.commit()
@@ -326,12 +410,8 @@ def review_generated_form(
             detail="Only Senior staff, Managers or Admins can approve forms for portal upload."
         )
 
-    # A generated form with unresolved required fields must never be approved.
     if payload.new_status == "APPROVED_FOR_PORTAL_UPLOAD" and record.missing_fields:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot approve form with unresolved missing fields: " + ", ".join(str(x) for x in record.missing_fields)
-        )
+        raise HTTPException(status_code=400, detail="Cannot approve form with unresolved missing required fields: " + ", ".join(str(x) for x in record.missing_fields))
 
     record.status = payload.new_status
     record.reviewed_by = current_user.email or current_user.name or "REVIEWER"

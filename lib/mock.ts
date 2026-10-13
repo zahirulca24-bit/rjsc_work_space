@@ -19,7 +19,7 @@ export const works = [
 ];
 
 export const requiredDocs: Record<string, string[]> = {
-  "Annual Return / Returns Filing": ["Latest Form XII", "AGM Minutes / Resolution", "Schedule X information", "Audited Financial Statements", "Director & Shareholder information", "Previous filing / challan if available"],
+  "Annual Return / Returns Filing": ["Schedule X information", "Audited Balance Sheet", "Profit & Loss Account", "Form 23B (Auditor Consent)", "AGM Minutes / Notice", "Previous filing / challan if available"],
   "Change Return / Form XII": ["Board / Shareholder Resolution", "Updated director particulars", "NID/Passport copies", "Share transfer/appointment/resignation support", "Existing Form XII"],
   "Private Company Registration": ["Name Clearance", "MOA", "AOA", "Form I", "Form VI", "Form IX", "Form X", "Form XII", "Director/Shareholder NID/Passport"],
   "Name Clearance": ["Proposed company names", "Applicant contact details"],

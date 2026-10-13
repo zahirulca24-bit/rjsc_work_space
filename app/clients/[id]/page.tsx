@@ -16,6 +16,7 @@ import RjscRecordComparison from "./RjscRecordComparison";
 import { EntityType } from "@/lib/rjsc/types";
 import { computeDocumentCompleteness, DocumentCompletenessSummary } from "@/lib/clients/document-completeness";
 import { listDocuments } from "@/lib/api/documents";
+import AnnualReturnServicePanel from "@/components/services/AnnualReturnServicePanel";
 
 export default function ClientProfilePage() {
   const params = useParams();
@@ -202,7 +203,7 @@ export default function ClientProfilePage() {
       </div>
 
       <div className="flex gap-2 border-b border-[#d9e3df] overflow-x-auto pb-1 mb-4">
-        {["Overview", "Corporate History", "Active Works", "Documents", "Financials"].map(t => (
+        {["Overview", "Annual Return Assessment", "Corporate History", "Active Works", "Documents", "Financials"].map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -314,6 +315,10 @@ export default function ClientProfilePage() {
       {tab === "Overview" && <ComplianceReview events={events} />}
 
       {tab === "Overview" && <RjscRecordComparison clientId={id} client={client} currentPosition={currentPosition} />}
+
+      {tab === "Annual Return Assessment" && (
+        <AnnualReturnServicePanel clientId={id} />
+      )}
 
       {tab === "Corporate History" && (
         <div className="flex gap-6">
