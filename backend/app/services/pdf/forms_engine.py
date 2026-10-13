@@ -864,6 +864,10 @@ def generate_form_xix(
     missing = []
     if not company.get("legal_name"):
         missing.append("Company legal name missing")
+    if not instrument_date:
+        missing.append("Original mortgage instrument date missing; verify original deed")
+    if not mod_date:
+        missing.append("Modification/supplementary instrument date missing; verify deed")
 
     reader = pypdf.PdfReader(template_path)
     writer = pypdf.PdfWriter()
