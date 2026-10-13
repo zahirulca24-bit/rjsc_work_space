@@ -82,7 +82,7 @@ def verify_rjsc_online_record(
     if len(years) > 25:
         raise HTTPException(status_code=400, detail="Maximum 25 verified periods at a time")
     for year in years:
-        if not re.fullmatch(r"\\d{4}-\\d{4}", year) or int(year[5:]) != int(year[:4]) + 1:
+        if not re.fullmatch(r"\d{4}-\d{4}", year) or int(year[5:]) != int(year[:4]) + 1:
             raise HTTPException(status_code=400, detail=f"Invalid financial year: {year}")
         if year not in get_financial_years_range(client.incorporation_date):
             raise HTTPException(status_code=400, detail=f"Year outside incorporation-to-current range: {year}")
@@ -106,7 +106,7 @@ def verify_rjsc_online_record(
         ar.evidence_status = "VERIFIED"
         ar.source_evidence = str(schedule.id)
         ar.notes = (
-            (ar.notes + "\\n" if ar.notes else "")
+            (ar.notes + "\n" if ar.notes else "")
             + f"RJSC online Schedule X certified-copy list, document date "
             + f"{payload.schedule_x_document_date.isoformat()}, reviewed by {current_user.email}. "
             + "Financial year confirmed by reviewer; document date is NOT filing date."
