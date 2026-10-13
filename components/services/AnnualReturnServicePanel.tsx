@@ -7,9 +7,10 @@ import {
   ShieldCheck, ShieldAlert, ArrowRight, ExternalLink, Calendar, Layers
 } from "lucide-react";
 import {
-  getAnnualReturnAssessment, createAnnualReturnWork,
+  getAnnualReturnAssessment, createAnnualReturnWork, verifyRjscOnlineRecord,
   AnnualReturnAssessmentResponse, AnnualReturnAssessmentYear
 } from "@/lib/api/annual-returns";
+import { listDocuments } from "@/lib/api/documents";
 import { ContentCard, StatCard, StatusBadge, LoadingState, Table, Th, Td } from "@/components/SharedUI";
 
 interface AnnualReturnServicePanelProps {
@@ -28,6 +29,12 @@ export default function AnnualReturnServicePanel({
   const [selectedYears, setSelectedYears] = useState<string[]>([]);
   const [creatingWork, setCreatingWork] = useState(false);
   const [workNotes, setWorkNotes] = useState("");
+  const [verifiedDocs, setVerifiedDocs] = useState<any[]>([]);
+  const [scheduleDocumentId, setScheduleDocumentId] = useState("");
+  const [scheduleDocumentDate, setScheduleDocumentDate] = useState("");
+  const [verifiedYears, setVerifiedYears] = useState<string[]>([]);
+  const [savingRjsc, setSavingRjsc] = useState(false);
+  const [rjscMessage, setRjscMessage] = useState("");
 
   const loadAssessment = useCallback(async () => {
     if (!clientId) return;
@@ -35,6 +42,8 @@ export default function AnnualReturnServicePanel({
       setLoading(true);
       const res = await getAnnualReturnAssessment(clientId);
       setData(res);
+      const docs = await listDocuments({ client_id: clientId, status: "VERIFIED" }).catch(() => []);
+      setVerifiedDocs(docs.filter((d: any) => ["application/pdf", "image/png", "image/jpeg"].includes(d.mime_type)));
     } catch (err) {
       console.error("Failed to load annual return assessment", err);
     } finally {
@@ -51,6 +60,29 @@ export default function AnnualReturnServicePanel({
       setSelectedYears(selectedYears.filter((y) => y !== fy));
     } else {
       setSelectedYears([...selectedYears, fy]);
+    }
+  };
+
+  const saveRjscVerification = async () => {
+    if (!scheduleDocumentId || !scheduleDocumentDate || verifiedYears.length === 0) {
+      setRjscMessage("Choose a reviewed RJSC screenshot/PDF, document date, and specific evidenced financial years.");
+      return;
+    }
+    setSavingRjsc(true);
+    setRjscMessage("");
+    try {
+      await verifyRjscOnlineRecord(clientId, {
+        schedule_x_document_id: scheduleDocumentId,
+        schedule_x_document_date: scheduleDocumentDate,
+        verified_financial_years: verifiedYears
+      });
+      setRjscMessage("RJSC Schedule X periods verified and saved. These years will not be requested again.");
+      setVerifiedYears([]);
+      await loadAssessment();
+    } catch (err: any) {
+      setRjscMessage(err.message || "Verification failed");
+    } finally {
+      setSavingRjsc(false);
     }
   };
 
@@ -115,6 +147,55 @@ export default function AnnualReturnServicePanel({
         </div>
       </div>
 
+      {/* One-time reviewed official RJSC Online Certified Copy evidence */}
+      <ContentCard className="p-5">
+        <h3 className="font-bold text-[#181818] mb-2">RJSC Online Record — One-time Schedule X Verification</h3>
+        <p className="text-xs text-[#6c7671] mb-3">
+          Upload the official Certified Copy List screenshot/PDF under Documents and have it reviewed.
+          Select only the financial years actually evidenced by Schedule X. The listed document date is
+          not automatically the filing date or AGM date. Form XII is tracked separately.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="block text-xs font-bold mb-1">Reviewed RJSC Schedule X screenshot / PDF</label>
+            <select value={scheduleDocumentId} onChange={e => setScheduleDocumentId(e.target.value)}
+              className="w-full rounded-lg border border-[#d9e3df] bg-white p-2 text-xs">
+              <option value="">Select verified uploaded evidence</option>
+              {verifiedDocs.map(doc => (
+                <option key={doc.id} value={doc.id}>{doc.document_name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold mb-1">Latest Schedule X document date</label>
+            <input type="date" value={scheduleDocumentDate} onChange={e => setScheduleDocumentDate(e.target.value)}
+              className="w-full rounded-lg border border-[#d9e3df] bg-white p-2 text-xs" />
+          </div>
+        </div>
+        <p className="text-xs font-bold mb-2">Financial year(s) confirmed from the actual RJSC record</p>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {data.assessment.filter(row => row.evidence_status !== "VERIFIED").map(row => (
+            <label key={row.financial_year} className="inline-flex items-center gap-1.5 rounded-lg border border-[#d9e3df] bg-white px-2.5 py-1.5 text-xs">
+              <input type="checkbox" checked={verifiedYears.includes(row.financial_year)}
+                onChange={e => setVerifiedYears(current => e.target.checked
+                  ? [...current, row.financial_year] : current.filter(y => y !== row.financial_year))} />
+              {row.financial_year}
+            </label>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" disabled={savingRjsc || !verifiedYears.length}
+            onClick={saveRjscVerification}
+            className="rounded-lg bg-[#447a5d] px-4 py-2 text-xs font-bold text-white disabled:opacity-50">
+            {savingRjsc ? "Saving verification..." : "Save RJSC Verified Years"}
+          </button>
+          <span className="text-xs text-[#6c7671]">
+            {verifiedDocs.length ? "Only reviewed documents appear above." : "No reviewed evidence yet. Upload and verify it in Documents first."}
+          </span>
+        </div>
+        {rjscMessage && <p role="status" className="mt-2 text-xs font-semibold">{rjscMessage}</p>}
+      </ContentCard>
+
       {/* Summary Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <StatCard title="Years Assessed" value={data.total_years_assessed} />
@@ -170,6 +251,7 @@ export default function AnnualReturnServicePanel({
                       <input
                         type="checkbox"
                         checked={isSelected}
+                        disabled={row.evidence_status === "VERIFIED"}
                         onChange={() => toggleYear(row.financial_year)}
                         className="rounded border-[#d9e3df] text-[#447a5d] focus:ring-[#447a5d]"
                       />
@@ -202,7 +284,7 @@ export default function AnnualReturnServicePanel({
                       {row.filed_date ? (
                         <span className="font-semibold text-emerald-800">{row.filed_date}</span>
                       ) : (
-                        <span className="text-xs text-[#9aa49f]">Not Filed</span>
+                        <span className="text-xs text-[#9aa49f]">{row.evidence_status === "VERIFIED" ? "Verified record; date unknown" : "Filing date not verified"}</span>
                       )}
                     </Td>
                     <Td>
@@ -229,7 +311,7 @@ export default function AnnualReturnServicePanel({
                           </span>
                         </div>
                       ) : (
-                        <span className="text-xs text-emerald-700 font-medium">On Schedule</span>
+                        <span className="text-xs text-[#6c7671] font-medium">{row.due_date ? "No confirmed delay" : "Deadline unverified"}</span>
                       )}
                     </Td>
                     <Td>
